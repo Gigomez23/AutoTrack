@@ -1,7 +1,6 @@
-package ni.edu.uam.autotrak.data.remote
+package ni.edu.uam.autotrak.data.remote.api
 
-import ni.edu.uam.autotrak.data.model.DocumentoLicencia
-import ni.edu.uam.autotrak.data.model.DocumentoVehiculo
+import ni.edu.uam.autotrak.data.remote.model.DocumentoLicencia
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -11,6 +10,7 @@ import retrofit2.http.Path
 
 interface DocumentoLicenciaApi {
     @GET("api/documentosLicencia")
+//    suspend fun getDocumentosLicencia(): DocumentoLicencia
     suspend fun getDocumentosLicencia(): List<DocumentoLicencia>
 
     @GET("api/documentosLicencia/{id}")

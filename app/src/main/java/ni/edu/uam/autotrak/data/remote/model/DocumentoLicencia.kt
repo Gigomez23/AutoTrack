@@ -1,4 +1,4 @@
-package ni.edu.uam.autotrak.data.model
+package ni.edu.uam.autotrak.data.remote.model
 
 data class DocumentoLicencia(
     override val id: Long? = null,

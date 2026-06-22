@@ -1,5 +1,14 @@
 package ni.edu.uam.autotrak.data.remote
 
+import ni.edu.uam.autotrak.data.remote.api.DocumentoApi
+import ni.edu.uam.autotrak.data.remote.api.DocumentoLicenciaApi
+import ni.edu.uam.autotrak.data.remote.api.DocumentoVehiculoApi
+import ni.edu.uam.autotrak.data.remote.api.PreferenciasApi
+import ni.edu.uam.autotrak.data.remote.api.RegistroApi
+import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
+import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
+import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
+import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 

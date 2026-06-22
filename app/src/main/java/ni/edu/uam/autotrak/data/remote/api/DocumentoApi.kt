@@ -1,6 +1,6 @@
-package ni.edu.uam.autotrak.data.remote
+package ni.edu.uam.autotrak.data.remote.api
 
-import ni.edu.uam.autotrak.data.model.Documento
+import ni.edu.uam.autotrak.data.remote.model.Documento
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET

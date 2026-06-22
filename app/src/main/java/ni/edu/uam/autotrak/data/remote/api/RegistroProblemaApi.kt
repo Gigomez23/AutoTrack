@@ -1,7 +1,8 @@
-package ni.edu.uam.autotrak.data.remote
+package ni.edu.uam.autotrak.data.remote.api
 
-import ni.edu.uam.autotrak.data.model.RegistroProblema
+import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -19,4 +20,7 @@ interface RegistroProblemaApi {
 
     @PUT("api/registro-problema/{id}")
     suspend fun updateRegistroProblema(@Path("id") id: Long, @Body registroProblema: RegistroProblema): RegistroProblema
+
+    @DELETE("api/registro-problema/{id}")
+    suspend fun deleteRegistroProblema(@Path("id") id: Long)
 }
