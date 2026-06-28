@@ -6,4 +6,4 @@ data class DocumentoLicencia(
     override val fechaVencimiento: String? = null,
 //    override val imagen: String = "",
     val usuario: Usuario? = null
-) : Documento(id, fechaEmitida, fechaVencimiento)
+) : Documento

@@ -5,8 +5,8 @@ import java.time.LocalDate
 
 data class Reporte(
     val id: Long? = null,
-    val costo: BigDecimal = 0.0.toBigDecimal(),
+    val costo: BigDecimal? = 0.0.toBigDecimal(),
     val fecha: LocalDate? = null,
     val fechaInicio: LocalDate? = null,
-    val titulo: String = "",
+    val titulo: String? = "",
 )

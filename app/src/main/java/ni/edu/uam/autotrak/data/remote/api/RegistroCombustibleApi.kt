@@ -9,18 +9,16 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface RegistroCombustibleApi {
-    @GET("api/registro-combustible")
-    suspend fun getRegistrosCombustible(): List<RegistroCombustible>
+    @POST("api/v1/combustibles/vehiculo/{vehiculoId}")
+    suspend fun createRegistroCombustible(@Path("vehiculoId") vehiculoId: Long,
+                                          @Body registroCombustible: RegistroCombustible): RegistroCombustible
 
-    @GET("api/registro-combustible/{id}")
-    suspend fun getRegistroCombustibleById(@Path("id") id: Long): RegistroCombustible
+    @GET("api/v1/combustibles/vehiculo/{vehiculoId}")
+    suspend fun getRegistroCombustibleByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroCombustible>
 
-    @POST("api/registro-combustible")
-    suspend fun createRegistroCombustible(@Body registroCombustible: RegistroCombustible): RegistroCombustible
+    @GET("api/v1/combustibles/vehiculo/{vehiculoId}/total-gastado")
+    suspend fun getTotalGastadoByVehiculoId(@Path("vehiculoId") vehiculoId: Long): Double
 
-    @PUT("api/registro-combustible/{id}")
-    suspend fun updateRegistroCombustible(@Path("id") id: Long, @Body registroCombustible: RegistroCombustible): RegistroCombustible
-
-    @DELETE("api/registro-combustible/{id}")
-    suspend fun deleteRegistroCombustible(@Path("id") id: Long)
+    @GET("api/v1/combustibles/vehiculo/{vehiculoId}/rendimiento")
+    suspend fun getRendimientoByVehiculoId(@Path("vehiculoId") vehiculoId: Long): Double
 }

@@ -1,6 +1,7 @@
 package ni.edu.uam.autotrak.data.remote.api
 
 import ni.edu.uam.autotrak.data.remote.model.Registro
+import ni.edu.uam.autotrak.data.remote.model.RegistroGeneral
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -9,18 +10,18 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface RegistroApi {
-    @GET("api/registros")
-    suspend fun getRegistros(): List<Registro>
+    @GET("api/v1/registros")
+    suspend fun getRegistros(): List<RegistroGeneral>
 
-    @GET("api/registros/{id}")
-    suspend fun getRegistroById(@Path("id") id: Long): Registro
+    @GET("api/v1/registros/{id}")
+    suspend fun getRegistroById(@Path("id") id: Long): RegistroGeneral
 
-    @POST("api/registros")
-    suspend fun createRegistro(@Body registro: Registro): Registro
+    @GET("api/v1/registros/vehiculo/{vehiculoId}/filtrar")
+    suspend fun getRegistrosByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroGeneral>
 
-    @PUT("api/registros/{id}")
-    suspend fun updateRegistro(@Path("id") id: Long, @Body registro: Registro): Registro
+    @GET("api/v1/registros/vehiculo/{vehiculoId}/historial")
+    suspend fun getHistorialByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroGeneral>
 
-    @DELETE("api/registros/{id}")
+    @DELETE("api/v1/registros/{id}")
     suspend fun deleteRegistro(@Path("id") id: Long)
 }

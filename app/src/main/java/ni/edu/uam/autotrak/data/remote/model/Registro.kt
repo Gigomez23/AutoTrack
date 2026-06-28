@@ -2,9 +2,14 @@ package ni.edu.uam.autotrak.data.remote.model
 
 import java.time.LocalDate
 
-open class Registro(
-    open val id: Long? = null,
-    open val fechaRegistro: LocalDate? = null,
-    open val notas: String = "",
-    open val vehiculo: Vehiculo? = null,
-)
+interface Registro {
+    val id: Long?
+    val fechaRegistro: LocalDate?
+    val nota: String?
+}
+
+data class RegistroGeneral(
+    override val id: Long? = null,
+    override val fechaRegistro: LocalDate? = null,
+    override val nota: String? = "",
+) : Registro

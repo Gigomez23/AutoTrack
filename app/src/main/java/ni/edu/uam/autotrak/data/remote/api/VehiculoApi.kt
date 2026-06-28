@@ -9,18 +9,27 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface VehiculoApi {
-    @GET("api/vehiculos")
+    @GET("api/v1/vehiculos")
     suspend fun getVehiculos(): List<Vehiculo>
 
-    @GET("api/vehiculos/{id}")
+    @GET("api/v1/vehiculos/{id}")
     suspend fun getVehiculoById(@Path("id") id: Long): Vehiculo
 
-    @POST("api/vehiculos")
+    @GET("api/v1/vehiculos/usuario/{usuarioId}")
+    suspend fun getVehiculoByUsuarioId(@Path("usuarioId") usuarioId: Long): List<Vehiculo>
+
+    @GET("api/v1/vehiculos/buscar-por-placa/{placa}")
+    suspend fun getVehiculoByPlaca(@Path("placa") placa: String): Vehiculo
+
+    @GET("api/v1/vehiculos/buscar-por-vin/{vin}")
+    suspend fun getVehiculoByVin(@Path("vin") vin: String): Vehiculo
+
+    @POST("api/v1/vehiculos")
     suspend fun createVehiculo(@Body vehiculo: Vehiculo): Vehiculo
 
-    @PUT("api/vehiculos/{id}")
+    @PUT("api/v1/vehiculos/{id}")
     suspend fun updateVehiculo(@Path("id") id: Long, @Body vehiculo: Vehiculo): Vehiculo
 
-    @DELETE("api/vehiculos/{id}")
+    @DELETE("api/v1/vehiculos/{id}")
     suspend fun deleteVehiculo(@Path("id") id: Long)
 }

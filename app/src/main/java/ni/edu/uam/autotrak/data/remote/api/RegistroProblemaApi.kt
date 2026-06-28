@@ -9,18 +9,18 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface RegistroProblemaApi {
-    @GET("api/registro-problema")
-    suspend fun getRegistrosProblema(): List<RegistroProblema>
+    @GET("api/v1/problemas/vehiculo/{vehiculoId}")
+    suspend fun getRegistroProblemaByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroProblema>
 
-    @GET("api/registro-problema/{id}")
-    suspend fun getRegistroProblemaById(@Path("id") id: Long): RegistroProblema
+    @GET("api/v1/problemas/vehiculo/{vehiculoId}/apto-circular")
+    suspend fun getAptoCircularByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroProblema>
 
-    @POST("api/registro-problema")
-    suspend fun createRegistroProblema(@Body registroProblema: RegistroProblema): RegistroProblema
+    @POST("api/v1/problemas/vehiculo/{vehiculoId}")
+    suspend fun createRegistroProblema(@Path("vehiculoId") vehiculoId: Long, @Body registroProblema: RegistroProblema): RegistroProblema
 
-    @PUT("api/registro-problema/{id}")
+    @PUT("api/v1/problemas/{id}")
     suspend fun updateRegistroProblema(@Path("id") id: Long, @Body registroProblema: RegistroProblema): RegistroProblema
 
-    @DELETE("api/registro-problema/{id}")
+    @DELETE("api/v1/problemas/{id}")
     suspend fun deleteRegistroProblema(@Path("id") id: Long)
 }

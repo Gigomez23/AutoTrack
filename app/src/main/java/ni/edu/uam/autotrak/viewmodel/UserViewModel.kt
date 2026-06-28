@@ -5,18 +5,21 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import ni.edu.uam.autotrak.data.model.Usuario
-import ni.edu.uam.autotrak.data.model.Vehiculo
+import ni.edu.uam.autotrak.data.remote.model.Usuario
 import ni.edu.uam.autotrak.data.remote.RetrofitClient
+import ni.edu.uam.autotrak.data.remote.SessionManager
 
-//todo: implementar que el get de usuario tenga el id del usuario logueado.
-//impementacion temporal de usar id = 1
-class UserViewModel : ViewModel() {
+class UserViewModel(private val sessionManager: SessionManager) : ViewModel() {
     private val _uiState = MutableStateFlow<UiState<List<Usuario>>>(UiState.Loading)
     val uiState = _uiState.asStateFlow()
 
     init {
-        buscarUsuario(1)
+        val userId = sessionManager.getUserId()
+        if (userId != -1L) {
+            buscarUsuario(userId)
+        } else {
+            _uiState.value = UiState.Error("No hay usuario seleccionado")
+        }
     }
 
     fun buscarUsuario(id: Long) {
@@ -38,10 +41,11 @@ class UserViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 RetrofitClient.api_usuario.createUsuario(usuario)
-                buscarUsuario(1)
+                val userId = sessionManager.getUserId()
+                if (userId != -1L) buscarUsuario(userId)
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(
-                    "Error al crear el vehiculo: ${e.message}"
+                    "Error al crear el usuario: ${e.message}"
                 )
             }
         }
@@ -51,10 +55,11 @@ class UserViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 RetrofitClient.api_usuario.updateUsuario(id, usuario)
-                buscarUsuario(1)
+                val userId = sessionManager.getUserId()
+                if (userId != -1L) buscarUsuario(userId)
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(
-                    "Error al actualizar el vehiculo: ${e.message}"
+                    "Error al actualizar el usuario: ${e.message}"
                 )
             }
         }
@@ -64,10 +69,11 @@ class UserViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 RetrofitClient.api_usuario.deleteUsuario(id)
-                buscarUsuario(1)
+                val userId = sessionManager.getUserId()
+                if (userId != -1L) buscarUsuario(userId)
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(
-                    "Error al eliminar el vehiculo: ${e.message}"
+                    "Error al eliminar el usuario: ${e.message}"
                 )
             }
         }

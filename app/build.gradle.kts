@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -16,7 +17,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -31,20 +32,21 @@ android {
         }
     }
 
-    productFlavors {
-        create("dev") {
-            dimension = "environment"
-            applicationIdSuffix = ".dev"
-            versionNameSuffix = "-dev"
-            buildConfigField("String", "API_BASE_URL", "\"https://10.0.2.2:8080/\"")
-        }
-        create("prod") {
-            dimension = "environment"
-            buildConfigField("String", "API_BASE_URL", "\"https://10.0.2.2:8080/\"")
-        }
-    }
+//    productFlavors {
+//        create("dev") {
+//            dimension = "environment"
+//            applicationIdSuffix = ".dev"
+//            versionNameSuffix = "-dev"
+//            buildConfigField("String", "API_BASE_URL", "\"https://10.0.2.2:8080/\"")
+//        }
+//        create("prod") {
+//            dimension = "environment"
+//            buildConfigField("String", "API_BASE_URL", "\"https://10.0.2.2:8080/\"")
+//        }
+//    }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -71,4 +73,12 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.compose.material.icons.extended)
 }
