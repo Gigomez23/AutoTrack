@@ -48,7 +48,7 @@ class RegistroRepositoryImpl(
             RetrofitClient.api_registro.deleteRegistro(id)
             existing?.let { dao.delete(it) }
         } catch (_: Exception) {
-            existing?.let { dao.update(it.copy(syncState = SyncState.SYNC_FAILED)) }
+            existing?.let { dao.update(it.copy(syncState = SyncState.PENDING_DELETE)) }
         }
     }
 

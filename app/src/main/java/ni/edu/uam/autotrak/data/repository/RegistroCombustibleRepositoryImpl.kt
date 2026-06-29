@@ -22,6 +22,7 @@ class RegistroCombustibleRepositoryImpl(
     }
 
     override suspend fun refreshByVehiculoId(vehiculoId: Long) {
+        syncManagerProvider().pushFuel()
         val remoteList = RetrofitClient.api_registro_combustible.getRegistroCombustibleByVehiculoId(vehiculoId)
         remoteList.forEach { remote ->
             upsertFromRemote(remote.toRoomEntity(vehiculoId))
@@ -37,7 +38,50 @@ class RegistroCombustibleRepositoryImpl(
             persistRemote(remote.toRoomEntity(vehiculoId), localId)
             dao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)
             dao.getByLocalId(localId)?.toRemoteModel() ?: registro
+        }
+    }
+
+    override suspend fun update(id: Long, registro: RegistroCombustible): RegistroCombustible {
+        val existing = dao.getByServerId(id)
+        val localId = existing?.localId ?: dao.insert(
+            registro.toRoomEntity(existing?.vehiculoId).copy(
+                serverId = id,
+                syncState = SyncState.PENDING_UPDATE
+            )
+        )
+
+        if (existing != null) {
+            dao.update(
+                registro.toRoomEntity(existing.vehiculoId).copy(
+                    localId = localId,
+                    serverId = id,
+                    syncState = if (existing.syncState == SyncState.PENDING_CREATE) SyncState.PENDING_CREATE else SyncState.PENDING_UPDATE
+                )
+            )
+        }
+
+        return try {
+            val remote = RetrofitClient.api_registro_combustible.updateRegistroCombustible(id, registro)
+            persistRemote(remote.toRoomEntity(existing?.vehiculoId), localId)
+            dao.getByLocalId(localId)?.toRemoteModel() ?: remote
+        } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)
+            dao.getByLocalId(localId)?.toRemoteModel() ?: registro
+        }
+    }
+
+    override suspend fun delete(id: Long) {
+        val existing = dao.getByServerId(id)
+        if (existing != null) {
+            dao.update(existing.copy(syncState = SyncState.PENDING_DELETE))
+        }
+        try {
+            RetrofitClient.api_registro_combustible.deleteRegistroCombustible(id)
+            existing?.let { dao.delete(it) }
+        } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)
         }
     }
 

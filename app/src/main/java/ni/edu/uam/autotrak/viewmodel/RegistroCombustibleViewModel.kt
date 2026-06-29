@@ -98,6 +98,22 @@ class RegistroCombustibleViewModel(
         }
     }
 
+    fun actualizarRegistroCombustible(id: Long, registroCombustible: RegistroCombustible) {
+        viewModelScope.launch {
+            try {
+                fuelRepository.update(id, registroCombustible)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun eliminarRegistroCombustible(id: Long) {
+        viewModelScope.launch {
+            try {
+                fuelRepository.delete(id)
+            } catch (_: Exception) {}
+        }
+    }
+
     fun setChartType(type: FuelChartType) {
         _selectedChartType.value = type
     }

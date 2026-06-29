@@ -118,18 +118,11 @@ class HomeViewModel(
         viewModelScope.launch {
             _refreshing.value = true
             try {
-                // Perform refreshes independently so one failure doesn't block others
-                try {
-                    usuarioRepository.refreshUsuario(userId)
-                } catch (e: Exception) {
-                    // Log or handle error
-                }
+                // Trigger a full sync (push & pull) for everything relevant to the dashboard
+                // Since we updated repositories to use SyncManager, these calls will now be correct.
                 
-                try {
-                    vehiculoRepository.refreshVehiculos(userId)
-                } catch (e: Exception) {
-                    // Log or handle error
-                }
+                try { usuarioRepository.refreshUsuario(userId) } catch (e: Exception) {}
+                try { vehiculoRepository.refreshVehiculos(userId) } catch (e: Exception) {}
                 
                 val vehicles = try {
                     vehiculoRepository.observeVehiculos(userId).first()

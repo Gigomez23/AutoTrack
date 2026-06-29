@@ -22,6 +22,7 @@ class VehiculoRepositoryImpl(
     }
 
     override suspend fun refreshVehiculos(usuarioId: Long) {
+        syncManagerProvider().pushVehiculo()
         val remoteList = RetrofitClient.api_vehiculo.getVehiculoByUsuarioId(usuarioId)
         remoteList.forEach { remote ->
             upsertFromRemote(remote, usuarioId)
@@ -35,6 +36,7 @@ class VehiculoRepositoryImpl(
     }
 
     override suspend fun refreshVehiculoById(id: Long) {
+        syncManagerProvider().pushVehiculo()
         val remote = RetrofitClient.api_vehiculo.getVehiculoById(id)
         upsertFromRemote(remote, remote.usuario?.id)
     }
@@ -48,6 +50,7 @@ class VehiculoRepositoryImpl(
             persistRemote(remote, localId, vehiculo.usuario?.id)
             vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_VEHICULO)
             vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: vehiculo
         }
     }
@@ -68,7 +71,7 @@ class VehiculoRepositoryImpl(
                     localId = localId,
                     serverId = id,
                     usuarioId = vehiculo.usuario?.id ?: existing.usuarioId,
-                    syncState = SyncState.PENDING_UPDATE
+                    syncState = if (existing.syncState == SyncState.PENDING_CREATE) SyncState.PENDING_CREATE else SyncState.PENDING_UPDATE
                 )
             )
         }
@@ -78,6 +81,7 @@ class VehiculoRepositoryImpl(
             persistRemote(remote, localId, vehiculo.usuario?.id ?: existing?.usuarioId)
             vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_VEHICULO)
             vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: vehiculo
         }
     }
@@ -91,7 +95,7 @@ class VehiculoRepositoryImpl(
             RetrofitClient.api_vehiculo.deleteVehiculo(id)
             existing?.let { vehiculoDao.delete(it) }
         } catch (_: Exception) {
-            existing?.let { vehiculoDao.update(it.copy(syncState = SyncState.SYNC_FAILED)) }
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_VEHICULO)
         }
     }
 

@@ -14,6 +14,13 @@ interface RegistroCombustibleApi {
     suspend fun createRegistroCombustible(@Path("vehiculoId") vehiculoId: Long,
                                           @Body registroCombustible: RegistroCombustible): RegistroCombustible
 
+    @PUT("api/v1/combustibles/{id}")
+    suspend fun updateRegistroCombustible(@Path("id") id: Long,
+                                          @Body registroCombustible: RegistroCombustible): RegistroCombustible
+
+    @DELETE("api/v1/combustibles/{id}")
+    suspend fun deleteRegistroCombustible(@Path("id") id: Long)
+
     @GET("api/v1/combustibles/vehiculo/{vehiculoId}")
     suspend fun getRegistroCombustibleByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroCombustible>
 

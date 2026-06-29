@@ -22,6 +22,7 @@ class RegistroProblemaRepositoryImpl(
     }
 
     override suspend fun refreshByVehiculoId(vehiculoId: Long) {
+        syncManagerProvider().pushProblems()
         val remoteList = RetrofitClient.api_registro_problema.getRegistroProblemaByVehiculoId(vehiculoId)
         remoteList.forEach { remote ->
             upsertFromRemote(remote.toRoomEntity(vehiculoId))
@@ -37,6 +38,7 @@ class RegistroProblemaRepositoryImpl(
             persistRemote(remote.toRoomEntity(vehiculoId), localId)
             dao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_PROBLEMA)
             dao.getByLocalId(localId)?.toRemoteModel() ?: registro
         }
     }
@@ -55,7 +57,7 @@ class RegistroProblemaRepositoryImpl(
                 registro.toRoomEntity(existing.vehiculoId).copy(
                     localId = localId,
                     serverId = id,
-                    syncState = SyncState.PENDING_UPDATE
+                    syncState = if (existing.syncState == SyncState.PENDING_CREATE) SyncState.PENDING_CREATE else SyncState.PENDING_UPDATE
                 )
             )
         }
@@ -65,6 +67,7 @@ class RegistroProblemaRepositoryImpl(
             persistRemote(remote.toRoomEntity(existing?.vehiculoId), localId)
             dao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_PROBLEMA)
             dao.getByLocalId(localId)?.toRemoteModel() ?: registro
         }
     }
@@ -78,7 +81,7 @@ class RegistroProblemaRepositoryImpl(
             RetrofitClient.api_registro_problema.deleteRegistroProblema(id)
             existing?.let { dao.delete(it) }
         } catch (_: Exception) {
-            existing?.let { dao.update(it.copy(syncState = SyncState.SYNC_FAILED)) }
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_PROBLEMA)
         }
     }
 

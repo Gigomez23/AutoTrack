@@ -29,8 +29,15 @@ class UsuarioRepositoryImpl(
     }
 
     override suspend fun refreshUsuario(id: Long) {
-        val remote = usuarioApi.getUsuario(id)
-        upsertFromRemote(remote)
+        try {
+            syncManagerProvider().pushUsuario()
+            val remote = usuarioApi.getUsuario(id)
+            upsertFromRemote(remote)
+        } catch (e: Exception) {
+            // If targeted pull fails, try a general sync as fallback or rethrow
+            syncManagerProvider().pullUsuario()
+            throw e
+        }
     }
 
     override suspend fun createUsuario(usuario: Usuario): Usuario {
@@ -42,6 +49,7 @@ class UsuarioRepositoryImpl(
             persistRemote(remote, localId)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: usuario
         }
     }
@@ -60,7 +68,7 @@ class UsuarioRepositoryImpl(
                 usuario.toRoomEntity().copy(
                     localId = localId,
                     serverId = id,
-                    syncState = SyncState.PENDING_UPDATE
+                    syncState = if (existing.syncState == SyncState.PENDING_CREATE) SyncState.PENDING_CREATE else SyncState.PENDING_UPDATE
                 )
             )
         }
@@ -70,6 +78,7 @@ class UsuarioRepositoryImpl(
             persistRemote(remote, localId)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: usuario
         }
     }
@@ -83,7 +92,7 @@ class UsuarioRepositoryImpl(
             usuarioApi.deleteUsuario(id)
             existing?.let { usuarioDao.delete(it) }
         } catch (_: Exception) {
-            existing?.let { usuarioDao.update(it.copy(syncState = SyncState.SYNC_FAILED)) }
+            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO)
         }
     }
 

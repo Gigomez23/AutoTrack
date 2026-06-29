@@ -4,8 +4,6 @@ import ni.edu.uam.autotrak.data.local.dao.*
 import ni.edu.uam.autotrak.data.local.model.*
 import ni.edu.uam.autotrak.data.mapper.*
 import ni.edu.uam.autotrak.data.remote.api.*
-import java.time.LocalDateTime
-import java.time.ZoneOffset
 
 class SyncManager(
     private val syncMetadataDao: SyncMetadataDao,
@@ -22,12 +20,11 @@ class SyncManager(
 ) {
 
     suspend fun syncAll() {
-        pushLocalChanges()
-        pullRemoteChanges()
+        runSyncStep { pushLocalChanges() }
+        runSyncStep { pullRemoteChanges() }
     }
 
     suspend fun syncEntity(entityName: String) {
-        // Optional per-entity sync implementation if needed
         when (entityName) {
             SyncConstants.ENTITY_USUARIO -> {
                 pushUsuario()
@@ -45,31 +42,39 @@ class SyncManager(
                 pushProblems()
                 pullProblems()
             }
-            SyncConstants.ENTITY_REGISTRO -> {
-                pushRegistros()
-                pullRegistros()
-            }
         }
     }
 
     private suspend fun pushLocalChanges() {
-        pushUsuario()
-        pushVehiculo()
-        pushFuel()
-        pushProblems()
-        pushRegistros()
+        runSyncStep { pushUsuario() }
+        runSyncStep { pushVehiculo() }
+        runSyncStep { pushFuel() }
+        runSyncStep { pushProblems() }
+        runSyncStep { pushRegistros() }
     }
 
     private suspend fun pullRemoteChanges() {
-        pullUsuario()
-        pullVehiculo()
-        pullFuel()
-        pullProblems()
-        pullRegistros()
+        runSyncStep { pullUsuario() }
+        runSyncStep { pullVehiculo() }
+        runSyncStep { pullFuel() }
+        runSyncStep { pullProblems() }
+        runSyncStep { pullRegistros() }
+    }
+
+    private suspend inline fun runSyncStep(crossinline block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (_: Exception) {
+            // Keep processing the remaining entities.
+        }
+    }
+
+    private fun SyncState.isDeleteRetryState(): Boolean {
+        return this == SyncState.PENDING_DELETE || this == SyncState.SYNC_FAILED
     }
 
     // --- USUARIO ---
-    private suspend fun pushUsuario() {
+    suspend fun pushUsuario() {
         usuarioDao.getPendingSync().forEach { local ->
             try {
                 val remote = when (local.syncState) {
@@ -83,13 +88,17 @@ class SyncManager(
                     else -> null
                 }
                 remote?.let {
-                    usuarioDao.update(it.toRoomEntity().copy(localId = local.localId, syncState = SyncState.SYNCED))
+                    val entity = it.toRoomEntity().copy(
+                        localId = local.localId,
+                        syncState = SyncState.SYNCED
+                    )
+                    usuarioDao.update(entity)
                 }
             } catch (e: Exception) {}
         }
     }
 
-    private suspend fun pullUsuario() {
+    suspend fun pullUsuario() {
         val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_USUARIO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = usuarioApi.getUpdatedAfter(lastSync)
@@ -101,8 +110,8 @@ class SyncManager(
                 } else {
                     if (existing == null) {
                         usuarioDao.insert(remote.toRoomEntity())
-                    } else {
-                        // Conflict strategy: Last-write-wins based on fechaActualizacion
+                    } else if (existing.syncState == SyncState.SYNCED) {
+                        // Only pull if local is not pending changes, or use conflict resolution
                         if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
                             remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
                             usuarioDao.update(remote.toRoomEntity().copy(localId = existing.localId))
@@ -115,7 +124,7 @@ class SyncManager(
     }
 
     // --- VEHICULO ---
-    private suspend fun pushVehiculo() {
+    suspend fun pushVehiculo() {
         vehiculoDao.getPendingSync().forEach { local ->
             try {
                 val remote = when (local.syncState) {
@@ -129,13 +138,18 @@ class SyncManager(
                     else -> null
                 }
                 remote?.let {
-                    vehiculoDao.update(it.toRoomEntity().copy(localId = local.localId, syncState = SyncState.SYNCED))
+                    val entity = it.toRoomEntity().copy(
+                        localId = local.localId,
+                        usuarioId = it.usuario?.id ?: local.usuarioId,
+                        syncState = SyncState.SYNCED
+                    )
+                    vehiculoDao.update(entity)
                 }
             } catch (e: Exception) {}
         }
     }
 
-    private suspend fun pullVehiculo() {
+    suspend fun pullVehiculo() {
         val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_VEHICULO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = vehiculoApi.getUpdatedAfter(lastSync)
@@ -147,10 +161,14 @@ class SyncManager(
                 } else {
                     if (existing == null) {
                         vehiculoDao.insert(remote.toRoomEntity())
-                    } else {
+                    } else if (existing.syncState == SyncState.SYNCED) {
                         if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
                             remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            vehiculoDao.update(remote.toRoomEntity().copy(localId = existing.localId))
+                            val entity = remote.toRoomEntity().copy(
+                                localId = existing.localId,
+                                usuarioId = remote.usuario?.id ?: existing.usuarioId
+                            )
+                            vehiculoDao.update(entity)
                         }
                     }
                 }
@@ -160,27 +178,31 @@ class SyncManager(
     }
 
     // --- FUEL ---
-    private suspend fun pushFuel() {
+    suspend fun pushFuel() {
         fuelDao.getPendingSync().forEach { local ->
             try {
                 val remote = when (local.syncState) {
                     SyncState.PENDING_CREATE -> local.vehiculoId?.let { fuelApi.createRegistroCombustible(it, local.toRemoteModel()) }
-                    SyncState.PENDING_UPDATE -> null // API doesn't seem to have update for fuel records yet
+                    SyncState.PENDING_UPDATE -> local.serverId?.let { fuelApi.updateRegistroCombustible(it, local.toRemoteModel()) }
                     SyncState.PENDING_DELETE -> {
-                        // fuelApi.delete... null
+                        local.serverId?.let { fuelApi.deleteRegistroCombustible(it) }
                         fuelDao.delete(local)
                         null
                     }
                     else -> null
                 }
                 remote?.let {
-                    fuelDao.update(it.toRoomEntity(local.vehiculoId).copy(localId = local.localId, syncState = SyncState.SYNCED))
+                    val entity = it.toRoomEntity(local.vehiculoId).copy(
+                        localId = local.localId,
+                        syncState = SyncState.SYNCED
+                    )
+                    fuelDao.update(entity)
                 }
             } catch (e: Exception) {}
         }
     }
 
-    private suspend fun pullFuel() {
+    suspend fun pullFuel() {
         val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = fuelApi.getUpdatedAfter(lastSync)
@@ -192,10 +214,11 @@ class SyncManager(
                 } else {
                     if (existing == null) {
                         fuelDao.insert(remote.toRoomEntity())
-                    } else {
+                    } else if (existing.syncState == SyncState.SYNCED) {
                         if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
                             remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            fuelDao.update(remote.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId))
+                            val entity = remote.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId)
+                            fuelDao.update(entity)
                         }
                     }
                 }
@@ -205,7 +228,7 @@ class SyncManager(
     }
 
     // --- PROBLEMS ---
-    private suspend fun pushProblems() {
+    suspend fun pushProblems() {
         problemDao.getPendingSync().forEach { local ->
             try {
                 val remote = when (local.syncState) {
@@ -219,13 +242,17 @@ class SyncManager(
                     else -> null
                 }
                 remote?.let {
-                    problemDao.update(it.toRoomEntity(local.vehiculoId).copy(localId = local.localId, syncState = SyncState.SYNCED))
+                    val entity = it.toRoomEntity(local.vehiculoId).copy(
+                        localId = local.localId,
+                        syncState = SyncState.SYNCED
+                    )
+                    problemDao.update(entity)
                 }
             } catch (e: Exception) {}
         }
     }
 
-    private suspend fun pullProblems() {
+    suspend fun pullProblems() {
         val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_REGISTRO_PROBLEMA)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = problemApi.getUpdatedAfter(lastSync)
@@ -237,10 +264,11 @@ class SyncManager(
                 } else {
                     if (existing == null) {
                         problemDao.insert(remote.toRoomEntity())
-                    } else {
+                    } else if (existing.syncState == SyncState.SYNCED) {
                         if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
                             remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            problemDao.update(remote.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId))
+                            val entity = remote.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId)
+                            problemDao.update(entity)
                         }
                     }
                 }
@@ -253,7 +281,7 @@ class SyncManager(
     private suspend fun pushRegistros() {
         registroDao.getPendingSync().forEach { local ->
             try {
-                if (local.syncState == SyncState.PENDING_DELETE) {
+                if (local.syncState.isDeleteRetryState()) {
                     local.serverId?.let { registroApi.deleteRegistro(it) }
                     registroDao.delete(local)
                 }
