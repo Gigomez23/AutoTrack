@@ -2,46 +2,97 @@ package ni.edu.uam.autotrak.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.SessionManager
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
+import ni.edu.uam.autotrak.data.repository.VehiculoRepository
+import ni.edu.uam.autotrak.data.repository.RegistroCombustibleRepository
 
 import java.time.Month
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
 
-class VehiculoViewModel(private val sessionManager: SessionManager) : ViewModel() {
-    private val _uiState = MutableStateFlow<UiState<List<Vehiculo>>>(UiState.Loading)
-    val uiState = _uiState.asStateFlow()
+@OptIn(ExperimentalCoroutinesApi::class)
+class VehiculoViewModel(
+    private val sessionManager: SessionManager,
+    private val vehiculoRepository: VehiculoRepository,
+    private val fuelRepository: RegistroCombustibleRepository
+) : ViewModel() {
 
-    private val _detailUiState = MutableStateFlow<UiState<Vehiculo>>(UiState.Loading)
-    val detailUiState = _detailUiState.asStateFlow()
-
-    private val _registrosCombustible = MutableStateFlow<List<RegistroCombustible>>(emptyList())
-    val registrosCombustible = _registrosCombustible.asStateFlow()
-
-    private val _rendimientoData = MutableStateFlow<List<EfficiencyPoint>>(emptyList())
-    val rendimientoData = _rendimientoData.asStateFlow()
-
-    private val _costosMensualesData = MutableStateFlow<List<EfficiencyPoint>>(emptyList())
-    val costosMensualesData = _costosMensualesData.asStateFlow()
-
-    private val _averageEfficiency = MutableStateFlow(0.0)
-    val averageEfficiency = _averageEfficiency.asStateFlow()
-
-    private val _averageMonthlyCost = MutableStateFlow(0.0)
-    val averageMonthlyCost = _averageMonthlyCost.asStateFlow()
-
-    private val _vehicleSummaries = MutableStateFlow<Map<Long, VehicleStats>>(emptyMap())
-    val vehicleSummaries = _vehicleSummaries.asStateFlow()
+    private val userId = sessionManager.getUserId()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
+
+    private val _selectedVehicleId = MutableStateFlow<Long?>(null)
+
+    // Primary UI State for Vehicle List
+    val uiState: StateFlow<UiState<List<Vehiculo>>> = if (userId != -1L) {
+        vehiculoRepository.observeVehiculos(userId)
+            .map { list -> UiState.Success(list) as UiState<List<Vehiculo>> }
+            .onStart { emit(UiState.Loading) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+    } else {
+        MutableStateFlow(UiState.Error("No hay usuario seleccionado"))
+    }
+
+    // Vehicle Summaries (Calculated reactively)
+    val vehicleSummaries: StateFlow<Map<Long, VehicleStats>> = uiState
+        .flatMapLatest { state ->
+            if (state is UiState.Success) {
+                val vehicles = state.data
+                if (vehicles.isEmpty()) flowOf(emptyMap())
+                else {
+                    val fuelFlows = vehicles.map { v ->
+                        val vid = v.id ?: -1L
+                        fuelRepository.observeByVehiculoId(vid).map { vid to it }
+                    }
+                    combine(fuelFlows) { list ->
+                        list.associate { (id, records) ->
+                            id to calculateSummary(records)
+                        }
+                    }
+                }
+            } else flowOf(emptyMap())
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    // Detail UI State
+    val detailUiState: StateFlow<UiState<Vehiculo>> = _selectedVehicleId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(UiState.Loading)
+            else vehiculoRepository.observeVehiculoById(id)
+                .map { v -> if (v != null) UiState.Success(v) else UiState.Loading }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+
+    // Stats for detail view
+    private val _detailRecords = _selectedVehicleId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList())
+        else fuelRepository.observeByVehiculoId(id)
+    }
+
+    val registrosCombustible: StateFlow<List<RegistroCombustible>> = _detailRecords
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val rendimientoData: StateFlow<List<EfficiencyPoint>> = _detailRecords.map { records ->
+        calculateMonthlyEfficiency(records)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val costosMensualesData: StateFlow<List<EfficiencyPoint>> = _detailRecords.map { records ->
+        calculateMonthlyCosts(records)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val averageEfficiency: StateFlow<Double> = rendimientoData.map { points ->
+        if (points.isNotEmpty()) points.map { it.value.toDouble() }.average() else 0.0
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    val averageMonthlyCost: StateFlow<Double> = costosMensualesData.map { points ->
+        if (points.isNotEmpty()) points.map { it.value.toDouble() }.average() else 0.0
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
 
     data class VehicleStats(
         val rendimientoPromedio: Double = 0.0,
@@ -52,80 +103,40 @@ class VehiculoViewModel(private val sessionManager: SessionManager) : ViewModel(
         cargarVehiculos()
     }
 
-    fun cargarVehiculos() {
-        val userId = sessionManager.getUserId()
-        if (userId == -1L) {
-            _uiState.value = UiState.Error("No hay usuario seleccionado")
-            return
-        }
-        viewModelScope.launch {
-            try {
-                _uiState.value = UiState.Loading
-                val vehiculos = RetrofitClient.api_vehiculo.getVehiculoByUsuarioId(userId)
-                _uiState.value = UiState.Success(vehiculos)
-                
-                // Fetch summaries for each vehicle in parallel
-                val summaries = mutableMapOf<Long, VehicleStats>()
-                
-                kotlinx.coroutines.coroutineScope {
-                    vehiculos.map { v ->
-                        v.id?.let { id ->
-                            launch {
-                                try {
-                                    val rend = RetrofitClient.api_registro_combustible.getRendimientoByVehiculoId(id)
-                                    val totalGastado = RetrofitClient.api_registro_combustible.getTotalGastadoByVehiculoId(id)
-                                    val registros = RetrofitClient.api_registro_combustible.getRegistroCombustibleByVehiculoId(id)
-                                    val months = registros.groupBy { it.fechaRegistro?.month }.size.coerceAtLeast(1)
-                                    
-                                    synchronized(summaries) {
-                                        summaries[id] = VehicleStats(
-                                            rendimientoPromedio = rend,
-                                            costoMensualPromedio = totalGastado / months
-                                        )
-                                    }
-                                } catch (_: Exception) {
-                                    synchronized(summaries) {
-                                        summaries[id] = VehicleStats()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                _vehicleSummaries.value = summaries
-                
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Error al cargar los vehiculos: ${e.message}")
-            }
-        }
-    }
-
-    fun buscarVehiculo(id: Long) {
-        viewModelScope.launch {
-            try {
-                _detailUiState.value = UiState.Loading
-                val vehiculo = RetrofitClient.api_vehiculo.getVehiculoById(id)
-                _detailUiState.value = UiState.Success(vehiculo)
-                
-                // Also load fuel records for charts
-                val registros = RetrofitClient.api_registro_combustible.getRegistroCombustibleByVehiculoId(id)
-                _registrosCombustible.value = registros
-                calcularEstadisticasDetalle(registros)
-                
-            } catch (e: Exception) {
-                _detailUiState.value = UiState.Error(
-                    "Error al buscar el vehiculo: ${e.message}"
-                )
-            }
-        }
-    }
-
-    private fun calcularEstadisticasDetalle(registros: List<RegistroCombustible>) {
-        val sorted = registros.sortedBy { it.fechaRegistro }
+    private fun calculateSummary(records: List<RegistroCombustible>): VehicleStats {
+        val sorted = records.sortedBy { it.fechaRegistro }
         
-        // Group efficiency by month
+        // Calculate efficiency
+        var efficiency = 0.0
+        if (sorted.size >= 2) {
+            val distance = sorted.last().odometro - sorted.first().odometro
+            val fuel = sorted.dropLast(1).sumOf { it.cantidadCombustible }
+            if (distance > 0 && fuel > 0) {
+                efficiency = distance.toDouble() / fuel
+            }
+        }
+
+        // Calculate average monthly cost
+        val costByMonth = sorted.groupBy { 
+            val date = it.fechaRegistro ?: java.time.LocalDate.now()
+            "${date.year}-${date.monthValue}"
+        }.mapValues { entry ->
+            entry.value.sumOf { it.cantidadPagado?.toDouble() ?: 0.0 }
+        }
+        
+        val avgMonthlyCost = if (costByMonth.isNotEmpty()) {
+            costByMonth.values.average()
+        } else 0.0
+        
+        return VehicleStats(
+            rendimientoPromedio = efficiency,
+            costoMensualPromedio = avgMonthlyCost
+        )
+    }
+
+    private fun calculateMonthlyEfficiency(records: List<RegistroCombustible>): List<EfficiencyPoint> {
+        val sorted = records.sortedBy { it.fechaRegistro }
         val efficiencyByMonthMap = mutableMapOf<String, MutableList<Float>>()
-        val monthLabelFormatter = DateTimeFormatter.ofPattern("MMM", Locale.forLanguageTag("es-NI"))
         
         for (i in 1 until sorted.size) {
             val prev = sorted[i-1]
@@ -139,14 +150,15 @@ class VehiculoViewModel(private val sessionManager: SessionManager) : ViewModel(
             }
         }
 
-        val formattedEfficiencyPoints = efficiencyByMonthMap.toSortedMap().map { (key, list) ->
-            val parts = key.split("-")
-            val monthNum = parts[1].toInt()
+        return efficiencyByMonthMap.toSortedMap().map { (key, list) ->
+            val monthNum = key.split("-")[1].toInt()
             val monthName = Month.of(monthNum).getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("es-NI"))
             EfficiencyPoint(list.average().toFloat(), monthName)
         }.takeLast(6)
+    }
 
-        // Monthly Cost calculation
+    private fun calculateMonthlyCosts(records: List<RegistroCombustible>): List<EfficiencyPoint> {
+        val sorted = records.sortedBy { it.fechaRegistro }
         val costByMonth = sorted.groupBy { 
             val date = it.fechaRegistro ?: java.time.LocalDate.now()
             String.format(Locale.US, "%04d-%02d", date.year, date.monthValue)
@@ -154,72 +166,68 @@ class VehiculoViewModel(private val sessionManager: SessionManager) : ViewModel(
             entry.value.sumOf { it.cantidadPagado?.toDouble() ?: 0.0 }.toFloat()
         }
 
-        val formattedCostPoints = costByMonth.toSortedMap().map { (key, value) ->
+        return costByMonth.toSortedMap().map { (key, value) ->
             val parts = key.split("-")
             val year = parts[0]
             val monthNum = parts[1].toInt()
             val monthName = Month.of(monthNum).getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("es-NI"))
             EfficiencyPoint(value, "$monthName ${year.takeLast(2)}")
         }.takeLast(6)
-        
-        _rendimientoData.value = formattedEfficiencyPoints
-        _costosMensualesData.value = formattedCostPoints
-        
-        // Calculate vehicle-specific averages
-        if (formattedEfficiencyPoints.isNotEmpty()) {
-            _averageEfficiency.value = formattedEfficiencyPoints.map { it.value }.average()
-        } else {
-            _averageEfficiency.value = 0.0
+    }
+
+    fun cargarVehiculos() {
+        if (userId == -1L) return
+        viewModelScope.launch {
+            try {
+                vehiculoRepository.refreshVehiculos(userId)
+                
+                // Also refresh child data for all vehicles
+                val vehicles = vehiculoRepository.observeVehiculos(userId).first()
+                vehicles.forEach { v ->
+                    v.id?.let { vid ->
+                        fuelRepository.refreshByVehiculoId(vid)
+                    }
+                }
+            } catch (_: Exception) {}
         }
-        
-        if (costByMonth.isNotEmpty()) {
-            _averageMonthlyCost.value = costByMonth.values.average()
-        } else {
-            _averageMonthlyCost.value = 0.0
+    }
+
+    fun buscarVehiculo(id: Long) {
+        _selectedVehicleId.value = id
+        viewModelScope.launch {
+            try {
+                vehiculoRepository.refreshVehiculoById(id)
+                fuelRepository.refreshByVehiculoId(id)
+            } catch (_: Exception) {}
         }
     }
 
     fun crearVehiculo(vehiculo: Vehiculo) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_vehiculo.createVehiculo(vehiculo)
-                cargarVehiculos()
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al crear el vehiculo: ${e.message}"
-                )
-            }
+                vehiculoRepository.createVehiculo(vehiculo)
+            } catch (_: Exception) {}
         }
     }
 
     fun actualizarVehiculo(id: Long, vehiculo: Vehiculo) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_vehiculo.updateVehiculo(id, vehiculo)
-                cargarVehiculos()
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al actualizar el vehiculo: ${e.message}"
-                )
-            }
+                vehiculoRepository.updateVehiculo(id, vehiculo)
+            } catch (_: Exception) {}
         }
     }
 
     fun eliminarVehiculo(id: Long) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_vehiculo.deleteVehiculo(id)
-                cargarVehiculos()
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al eliminar el vehiculo: ${e.message}"
-                )
-            }
+                vehiculoRepository.deleteVehiculo(id)
+            } catch (_: Exception) {}
         }
     }
 
     fun getUserId(): Long {
-        return sessionManager.getUserId()
+        return userId
     }
 
     fun onSearchQueryChange(query: String) {

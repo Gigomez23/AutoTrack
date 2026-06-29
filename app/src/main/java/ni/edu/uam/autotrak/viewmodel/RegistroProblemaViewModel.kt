@@ -2,12 +2,14 @@ package ni.edu.uam.autotrak.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
-import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.SessionManager
+import ni.edu.uam.autotrak.data.repository.RegistroProblemaRepository
+import ni.edu.uam.autotrak.data.repository.VehiculoRepository
 
 enum class ProblemFilter {
     ALL, ACTIVE, RESOLVED
@@ -17,17 +19,27 @@ enum class ProblemSort {
     NEWEST, OLDEST
 }
 
-class RegistroProblemaViewModel(private val sessionManager: SessionManager) : ViewModel() {
-    private val _uiState = MutableStateFlow<UiState<List<RegistroProblema>>>(UiState.Success(emptyList()))
-    val uiState = _uiState.asStateFlow()
+@OptIn(ExperimentalCoroutinesApi::class)
+class RegistroProblemaViewModel(
+    private val sessionManager: SessionManager,
+    private val problemaRepository: RegistroProblemaRepository,
+    private val vehiculoRepository: VehiculoRepository
+) : ViewModel() {
 
-    private val _vehiclesState = MutableStateFlow<UiState<List<Vehiculo>>>(UiState.Loading)
-    val vehiclesState = _vehiclesState.asStateFlow()
+    private val userId = sessionManager.getUserId()
+
+    val vehiclesState: StateFlow<UiState<List<Vehiculo>>> = if (userId != -1L) {
+        vehiculoRepository.observeVehiculos(userId)
+            .map { list -> UiState.Success(list) as UiState<List<Vehiculo>> }
+            .onStart { emit(UiState.Loading) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+    } else {
+        MutableStateFlow(UiState.Error("No hay usuario seleccionado"))
+    }
 
     private val _selectedVehiculoId = MutableStateFlow<Long?>(null)
     val selectedVehiculoId = _selectedVehiculoId.asStateFlow()
 
-    // Filtering and Searching
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
@@ -37,9 +49,20 @@ class RegistroProblemaViewModel(private val sessionManager: SessionManager) : Vi
     private val _sort = MutableStateFlow(ProblemSort.NEWEST)
     val sort = _sort.asStateFlow()
 
-    private val _allRegistros = MutableStateFlow<List<RegistroProblema>>(emptyList())
+    // Single source of truth from Room, reacting to selection
+    private val _rawRegistros: Flow<List<RegistroProblema>> = _selectedVehiculoId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptyList())
+            else problemaRepository.observeByVehiculoId(id)
+        }
 
-    val filteredRegistros = combine(_allRegistros, _searchQuery, _filter, _sort) { registros, query, filter, sort ->
+    val uiState: StateFlow<UiState<List<RegistroProblema>>> = _rawRegistros
+        .map { list -> UiState.Success(list) as UiState<List<RegistroProblema>> }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+
+    val filteredRegistros: StateFlow<List<RegistroProblema>> = combine(
+        _rawRegistros, _searchQuery, _filter, _sort
+    ) { registros, query, filter, sort ->
         var filtered = registros.filter {
             (it.tipoProblema?.contains(query, ignoreCase = true) == true || 
              it.nota?.contains(query, ignoreCase = true) == true)
@@ -55,22 +78,19 @@ class RegistroProblemaViewModel(private val sessionManager: SessionManager) : Vi
             ProblemSort.NEWEST -> filtered.sortedByDescending { it.fechaRegistro }
             ProblemSort.OLDEST -> filtered.sortedBy { it.fechaRegistro }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun cargarVehiculos() {
-        val userId = sessionManager.getUserId()
-        if (userId == -1L) {
-            _vehiclesState.value = UiState.Error("No hay usuario seleccionado")
-            return
-        }
+        if (userId == -1L) return
         viewModelScope.launch {
             try {
-                _vehiclesState.value = UiState.Loading
-                val vehicles = RetrofitClient.api_vehiculo.getVehiculoByUsuarioId(userId)
-                _vehiclesState.value = UiState.Success(vehicles)
-            } catch (e: Exception) {
-                _vehiclesState.value = UiState.Error("Error al cargar vehículos: ${e.message}")
-            }
+                vehiculoRepository.refreshVehiculos(userId)
+                
+                // If a vehicle is selected, refresh its records too
+                _selectedVehiculoId.value?.let { vid ->
+                    problemaRepository.refreshByVehiculoId(vid)
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -82,37 +102,25 @@ class RegistroProblemaViewModel(private val sessionManager: SessionManager) : Vi
     fun cargarRegistrosProblema(vehiculoId: Long) {
         viewModelScope.launch {
             try {
-                _uiState.value = UiState.Loading
-                val registros = RetrofitClient.api_registro_problema.getRegistroProblemaByVehiculoId(vehiculoId)
-                _allRegistros.value = registros
-                _uiState.value = UiState.Success(registros)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Error al cargar los registros de problemas: ${e.message}")
-            }
+                problemaRepository.refreshByVehiculoId(vehiculoId)
+            } catch (_: Exception) {}
         }
     }
 
     fun crearRegistroProblema(vehiculoId: Long, registro: RegistroProblema) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_registro_problema.createRegistroProblema(vehiculoId, registro)
-                cargarRegistrosProblema(vehiculoId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Error al crear el registro: ${e.message}")
-            }
+                problemaRepository.create(vehiculoId, registro)
+            } catch (_: Exception) {}
         }
     }
 
     fun actualizarRegistroProblema(registro: RegistroProblema) {
         val id = registro.id ?: return
-        val vehiculoId = _selectedVehiculoId.value ?: return
         viewModelScope.launch {
             try {
-                RetrofitClient.api_registro_problema.updateRegistroProblema(id, registro)
-                cargarRegistrosProblema(vehiculoId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Error al actualizar el registro: ${e.message}")
-            }
+                problemaRepository.update(id, registro)
+            } catch (_: Exception) {}
         }
     }
 
@@ -121,14 +129,10 @@ class RegistroProblemaViewModel(private val sessionManager: SessionManager) : Vi
     }
 
     fun eliminarRegistroProblema(id: Long) {
-        val vehiculoId = _selectedVehiculoId.value ?: return
         viewModelScope.launch {
             try {
-                RetrofitClient.api_registro_problema.deleteRegistroProblema(id)
-                cargarRegistrosProblema(vehiculoId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Error al eliminar el registro: ${e.message}")
-            }
+                problemaRepository.delete(id)
+            } catch (_: Exception) {}
         }
     }
 

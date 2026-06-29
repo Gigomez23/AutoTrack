@@ -2,19 +2,31 @@ package ni.edu.uam.autotrak.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.SessionManager
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import ni.edu.uam.autotrak.data.remote.model.Usuario
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
+import ni.edu.uam.autotrak.data.repository.UsuarioRepository
+import ni.edu.uam.autotrak.data.repository.VehiculoRepository
+import ni.edu.uam.autotrak.data.repository.RegistroCombustibleRepository
+import ni.edu.uam.autotrak.data.repository.RegistroProblemaRepository
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
-class HomeViewModel(private val sessionManager: SessionManager) : ViewModel() {
+@OptIn(ExperimentalCoroutinesApi::class)
+class HomeViewModel(
+    private val sessionManager: SessionManager,
+    private val usuarioRepository: UsuarioRepository,
+    private val vehiculoRepository: VehiculoRepository,
+    private val fuelRepository: RegistroCombustibleRepository,
+    private val problemaRepository: RegistroProblemaRepository
+) : ViewModel() {
+
+    private val userId = sessionManager.getUserId()
 
     data class HomeUiState(
         val isLoading: Boolean = true,
@@ -33,6 +45,7 @@ class HomeViewModel(private val sessionManager: SessionManager) : ViewModel() {
     data class VehicleMetrics(
         val efficiency: Double = 0.0,
         val costPerKm: Double = 0.0,
+        val averageMonthlyCost: Double = 0.0,
         val hasActiveIssues: Boolean = false
     )
 
@@ -48,132 +61,174 @@ class HomeViewModel(private val sessionManager: SessionManager) : ViewModel() {
         FUEL, ISSUE, MAINTENANCE, VEHICLE_ADDED
     }
 
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState = _uiState.asStateFlow()
+    private val _refreshing = MutableStateFlow(false)
+
+    val uiState: StateFlow<HomeUiState> = if (userId != -1L) {
+        val userFlow = usuarioRepository.observeUsuario(userId)
+        val vehiclesFlow = vehiculoRepository.observeVehiculos(userId)
+        
+        combine(
+            userFlow,
+            vehiclesFlow,
+            _refreshing
+        ) { user, vehicles, refreshing ->
+            HomeUiParams(user, vehicles, refreshing)
+        }.flatMapLatest { params ->
+            val user = params.user
+            val vehicles = params.vehicles
+            val refreshing = params.refreshing
+            
+            if (vehicles.isEmpty()) {
+                flowOf(HomeUiState(isLoading = refreshing, user = user, vehicles = emptyList()))
+            } else {
+                val issueFlows = vehicles.map { v -> 
+                    val vid = v.id ?: -1L
+                    problemaRepository.observeByVehiculoId(vid).map { vid to it } 
+                }
+                val fuelFlows = vehicles.map { v -> 
+                    val vid = v.id ?: -1L
+                    fuelRepository.observeByVehiculoId(vid).map { vid to it } 
+                }
+
+                combine(
+                    combine(issueFlows) { it.toMap() },
+                    combine(fuelFlows) { it.toMap() }
+                ) { issuesMap, fuelMap ->
+                    calculateHomeState(user, vehicles, issuesMap, fuelMap, refreshing)
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, HomeUiState(isLoading = true))
+    } else {
+        MutableStateFlow(HomeUiState(isLoading = false, error = "No active session"))
+    }
+
+    private data class HomeUiParams(
+        val user: Usuario?,
+        val vehicles: List<Vehiculo>,
+        val refreshing: Boolean
+    )
 
     init {
         loadDashboardData()
     }
 
     fun loadDashboardData() {
-        val userId = sessionManager.getUserId()
-        if (userId == -1L) {
-            _uiState.value = _uiState.value.copy(error = "No active session", isLoading = false)
-            return
-        }
+        if (userId == -1L) return
 
         viewModelScope.launch {
             try {
-                _uiState.value = _uiState.value.copy(isLoading = true)
+                _refreshing.value = true
+                usuarioRepository.refreshUsuario(userId)
+                vehiculoRepository.refreshVehiculos(userId)
                 
-                val user = RetrofitClient.api_usuario.getUsuario(userId)
-                val vehicles = RetrofitClient.api_vehiculo.getVehiculoByUsuarioId(userId)
-                
-                val allIssues = mutableListOf<RegistroProblema>()
-                val allFuelRecords = mutableListOf<RegistroCombustible>()
-                val vehicleMetricsMap = mutableMapOf<Long, VehicleMetrics>()
-                
+                val vehicles = vehiculoRepository.observeVehiculos(userId).first()
                 vehicles.forEach { v ->
                     v.id?.let { id ->
-                        val issues = RetrofitClient.api_registro_problema.getRegistroProblemaByVehiculoId(id)
-                        allIssues.addAll(issues)
-                        
-                        val fuel = RetrofitClient.api_registro_combustible.getRegistroCombustibleByVehiculoId(id)
-                        allFuelRecords.addAll(fuel)
-                        
-                        var rend = 0.0
-                        var totalSpent = 0.0
-                        try {
-                            rend = RetrofitClient.api_registro_combustible.getRendimientoByVehiculoId(id)
-                            totalSpent = RetrofitClient.api_registro_combustible.getTotalGastadoByVehiculoId(id)
-                        } catch (_: Exception) {}
-
-                        // Calculate cost per km if possible
-                        val totalKm = if (fuel.size >= 2) {
-                            val sorted = fuel.sortedBy { it.fechaRegistro }
-                            (sorted.last().odometro - sorted.first().odometro).toDouble()
-                        } else 0.0
-
-                        vehicleMetricsMap[id] = VehicleMetrics(
-                            efficiency = rend,
-                            costPerKm = if (totalKm > 0) totalSpent / totalKm else 0.0,
-                            hasActiveIssues = issues.any { it.activo }
-                        )
+                        problemaRepository.refreshByVehiculoId(id)
+                        fuelRepository.refreshByVehiculoId(id)
                     }
                 }
-
-                val openIssuesCount = allIssues.count { it.activo }
-                val efficiencies = vehicleMetricsMap.values.map { it.efficiency }.filter { it > 0 }
-                val avgEfficiency = if (efficiencies.isNotEmpty()) efficiencies.average().toFloat() else 0f
-                
-                // Build Recent Activity
-                val activityItems = mutableListOf<ActivityItem>()
-                
-                allFuelRecords.forEach { 
-                    activityItems.add(ActivityItem(
-                        id = "fuel_${it.id}",
-                        type = ActivityType.FUEL,
-                        title = "Combustible registrado",
-                        subtitle = "${it.cantidadCombustible}L - ${it.fechaRegistro}",
-                        timestamp = it.fechaRegistro?.atStartOfDay() ?: LocalDateTime.now()
-                    ))
-                }
-                
-                allIssues.forEach {
-                    activityItems.add(ActivityItem(
-                        id = "issue_${it.id}",
-                        type = if (it.activo) ActivityType.ISSUE else ActivityType.MAINTENANCE,
-                        title = if (it.activo) "Problema reportado" else "Mantenimiento completado",
-                        subtitle = it.tipoProblema ?: "",
-                        timestamp = it.fechaRegistro?.atStartOfDay() ?: LocalDateTime.now()
-                    ))
-                }
-                
-                val sortedActivity = activityItems.sortedByDescending { it.timestamp }.take(10)
-                
-                // Generate Insights
-                val insights = mutableListOf<String>()
-                
-                if (vehicleMetricsMap.isNotEmpty()) {
-                    val efficientEntry = vehicleMetricsMap.filter { it.value.efficiency > 0 }.maxByOrNull { it.value.efficiency }
-                    efficientEntry?.let { entry ->
-                        val mostEfficientVehicle = vehicles.find { it.id == entry.key }
-                        mostEfficientVehicle?.let {
-                            insights.add("${it.marca} ${it.modelo} es actualmente tu vehículo con mejor rendimiento.")
-                        }
-                    }
-                }
-                
-                if (vehicles.any { it.estado == "CHACATA" }) {
-                    val criticalCount = vehicles.count { it.estado == "CHACATA" }
-                    insights.add("¡Atención! Tienes $criticalCount vehículo(s) en estado crítico que requieren revisión.")
-                }
-                
-                if (openIssuesCount > 0) {
-                    insights.add("Tienes $openIssuesCount problemas pendientes por resolver en tu flota.")
-                } else if (vehicles.isNotEmpty()) {
-                    insights.add("¡Excelente! No tienes problemas mecánicos reportados en este momento.")
-                }
-
-                _uiState.value = HomeUiState(
-                    isLoading = false,
-                    user = user,
-                    vehicles = vehicles,
-                    totalVehicles = vehicles.size,
-                    openIssues = openIssuesCount,
-                    fleetEfficiency = avgEfficiency,
-                    totalFuelRecords = allFuelRecords.size,
-                    recentActivity = sortedActivity,
-                    insights = insights,
-                    vehicleStats = vehicleMetricsMap
-                )
-
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message, isLoading = false)
+            } catch (_: Exception) {
+            } finally {
+                _refreshing.value = false
             }
         }
     }
-    
+
+    private fun calculateHomeState(
+        user: Usuario?,
+        vehicles: List<Vehiculo>,
+        issuesMap: Map<Long, List<RegistroProblema>>,
+        fuelMap: Map<Long, List<RegistroCombustible>>,
+        refreshing: Boolean
+    ): HomeUiState {
+        val vehicleMetricsMap = mutableMapOf<Long, VehicleMetrics>()
+        val allIssues = issuesMap.values.flatten()
+        val allFuel = fuelMap.values.flatten()
+        val efficiencies = mutableListOf<Double>()
+
+        vehicles.forEach { v ->
+            val id = v.id ?: return@forEach
+            val vehicleFuel = fuelMap[id] ?: emptyList()
+            val vehicleIssues = issuesMap[id] ?: emptyList()
+            
+            // Calculate efficiency and cost for this vehicle
+            val sortedFuel = vehicleFuel.sortedBy { it.fechaRegistro }
+            var vehicleEff = 0.0
+            if (sortedFuel.size >= 2) {
+                val distance = sortedFuel.last().odometro - sortedFuel.first().odometro
+                val totalFuel = sortedFuel.dropLast(1).sumOf { it.cantidadCombustible }
+                if (distance > 0 && totalFuel > 0) {
+                    vehicleEff = distance.toDouble() / totalFuel
+                    efficiencies.add(vehicleEff)
+                }
+            }
+
+            val costByMonth = sortedFuel.groupBy { 
+                val date = it.fechaRegistro ?: java.time.LocalDate.now()
+                "${date.year}-${date.monthValue}"
+            }.mapValues { entry ->
+                entry.value.sumOf { it.cantidadPagado?.toDouble() ?: 0.0 }
+            }
+            val avgMonthlyCost = if (costByMonth.isNotEmpty()) costByMonth.values.average() else 0.0
+
+            // Calculate cost per km
+            var costPerKm = 0.0
+            if (sortedFuel.size >= 2) {
+                val distance = sortedFuel.last().odometro - sortedFuel.first().odometro
+                
+                // For cost per km, we should ideally use the cost of fuel used for that distance
+                // Here we sum all costs excluding the first record (since that's the starting point for distance)
+                // but usually distance between records i and i+1 is powered by fuel at record i.
+                // To keep it simple and consistent with efficiency calculation:
+                val relevantCost = sortedFuel.dropLast(1).sumOf { it.cantidadPagado?.toDouble() ?: 0.0 }
+                
+                if (distance > 0) {
+                    costPerKm = relevantCost / distance
+                }
+            }
+
+            vehicleMetricsMap[id] = VehicleMetrics(
+                efficiency = vehicleEff,
+                costPerKm = costPerKm,
+                averageMonthlyCost = avgMonthlyCost,
+                hasActiveIssues = vehicleIssues.any { it.activo }
+            )
+        }
+
+        val activityItems = mutableListOf<ActivityItem>()
+        allFuel.forEach { 
+            activityItems.add(ActivityItem(
+                id = "fuel_${it.id}",
+                type = ActivityType.FUEL,
+                title = "Combustible registrado",
+                subtitle = "${it.cantidadCombustible}L - ${it.fechaRegistro}",
+                timestamp = it.fechaRegistro?.atStartOfDay() ?: LocalDateTime.now()
+            ))
+        }
+        allIssues.forEach {
+            activityItems.add(ActivityItem(
+                id = "issue_${it.id}",
+                type = if (it.activo) ActivityType.ISSUE else ActivityType.MAINTENANCE,
+                title = if (it.activo) "Problema reportado" else "Mantenimiento completado",
+                subtitle = it.tipoProblema ?: "",
+                timestamp = it.fechaRegistro?.atStartOfDay() ?: LocalDateTime.now()
+            ))
+        }
+
+        return HomeUiState(
+            isLoading = refreshing,
+            user = user,
+            vehicles = vehicles,
+            totalVehicles = vehicles.size,
+            openIssues = allIssues.count { it.activo },
+            fleetEfficiency = if (efficiencies.isNotEmpty()) efficiencies.average().toFloat() else 0f,
+            totalFuelRecords = allFuel.size,
+            recentActivity = activityItems.sortedByDescending { it.timestamp }.take(10),
+            vehicleStats = vehicleMetricsMap
+        )
+    }
+
     fun getRelativeTime(timestamp: LocalDateTime): String {
         val now = LocalDateTime.now()
         val days = ChronoUnit.DAYS.between(timestamp.toLocalDate(), now.toLocalDate())

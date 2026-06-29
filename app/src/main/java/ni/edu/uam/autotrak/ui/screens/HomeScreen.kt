@@ -406,8 +406,8 @@ fun VehicleCarouselCard(
                         value = if ((metrics?.efficiency ?: 0.0) > 0) String.format(Locale.getDefault(), "%.1f km/L", metrics?.efficiency) else "N/A"
                     )
                     SummaryItem(
-                        label = "Costo/km",
-                        value = if ((metrics?.costPerKm ?: 0.0) > 0) String.format(Locale.getDefault(), "$%.2f", metrics?.costPerKm) else "N/A"
+                        label = "Costo Mensual",
+                        value = if ((metrics?.averageMonthlyCost ?: 0.0) > 0) String.format(Locale.getDefault(), "$%.0f", metrics?.averageMonthlyCost) else "N/A"
                     )
                 }
                 

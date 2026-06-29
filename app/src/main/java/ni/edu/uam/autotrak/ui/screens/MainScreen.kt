@@ -31,6 +31,10 @@ import com.google.gson.Gson
 
 import ni.edu.uam.autotrak.viewmodel.HomeViewModel
 
+import androidx.compose.ui.platform.LocalContext
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
+import ni.edu.uam.autotrak.data.repository.*
+
 data class MenuItem(val title: String, val route: String, val icon: ImageVector)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,6 +43,14 @@ fun MainScreen(
     sessionManager: SessionManager,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
+    val database = AppDatabase.getInstance(context)
+
+    val usuarioRepository = UsuarioRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao())
+    val vehiculoRepository = VehiculoRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_vehiculo, database.vehiculoDao())
+    val fuelRepository = RegistroCombustibleRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_combustible, database.registroCombustibleDao())
+    val problemaRepository = RegistroProblemaRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_problema, database.registroProblemaDao())
+
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -49,11 +61,11 @@ fun MainScreen(
     val factory = object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return when {
-                modelClass.isAssignableFrom(VehiculoViewModel::class.java) -> VehiculoViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(UserViewModel::class.java) -> UserViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(RegistroCombustibleViewModel::class.java) -> RegistroCombustibleViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(RegistroProblemaViewModel::class.java) -> RegistroProblemaViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager) as T
+                modelClass.isAssignableFrom(VehiculoViewModel::class.java) -> VehiculoViewModel(sessionManager, vehiculoRepository, fuelRepository) as T
+                modelClass.isAssignableFrom(UserViewModel::class.java) -> UserViewModel(sessionManager, usuarioRepository) as T
+                modelClass.isAssignableFrom(RegistroCombustibleViewModel::class.java) -> RegistroCombustibleViewModel(sessionManager, fuelRepository, vehiculoRepository) as T
+                modelClass.isAssignableFrom(RegistroProblemaViewModel::class.java) -> RegistroProblemaViewModel(sessionManager, problemaRepository, vehiculoRepository) as T
+                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository) as T
                 else -> throw IllegalArgumentException("Unknown ViewModel class")
             }
         }

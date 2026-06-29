@@ -17,6 +17,9 @@ import ni.edu.uam.autotrak.ui.screens.MainScreen
 import ni.edu.uam.autotrak.ui.theme.AutoTrakTheme
 import ni.edu.uam.autotrak.viewmodel.AuthViewModel
 
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
+import ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,10 +38,17 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppNavigation(sessionManager: SessionManager) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val database = ni.edu.uam.autotrak.data.local.db.AppDatabase.getInstance(context)
+    val usuarioRepository = ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl(
+        ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
+        database.usuarioDao()
+    )
+
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-            return AuthViewModel(sessionManager) as T
+            return AuthViewModel(sessionManager, usuarioRepository) as T
         }
     })
 

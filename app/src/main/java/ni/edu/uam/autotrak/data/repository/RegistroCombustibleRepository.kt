@@ -1,3 +1,12 @@
 package ni.edu.uam.autotrak.data.repository
 
-interface RegistroCombustibleRepository
+import kotlinx.coroutines.flow.Flow
+import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
+
+interface RegistroCombustibleRepository {
+    fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroCombustible>>
+    suspend fun refreshByVehiculoId(vehiculoId: Long)
+    suspend fun create(vehiculoId: Long, registro: RegistroCombustible): RegistroCombustible
+    suspend fun getRendimiento(vehiculoId: Long): Double
+    suspend fun getTotalGastado(vehiculoId: Long): Double
+}
