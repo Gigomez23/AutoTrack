@@ -23,5 +23,7 @@ data class UsuarioEntity(
     val username: String = "",
     val password: String = "",
     val pais: String = "",
-    val syncState: SyncState = SyncState.SYNCED
+    val syncState: SyncState = SyncState.SYNCED,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 )

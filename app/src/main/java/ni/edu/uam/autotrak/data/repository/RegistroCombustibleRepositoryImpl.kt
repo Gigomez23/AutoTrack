@@ -5,12 +5,14 @@ import kotlinx.coroutines.flow.map
 import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
 import ni.edu.uam.autotrak.data.mapper.toRemoteModel
 import ni.edu.uam.autotrak.data.mapper.toRoomEntity
-import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
+import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
+import ni.edu.uam.autotrak.data.sync.SyncManager
+import ni.edu.uam.autotrak.data.sync.SyncState
 
 class RegistroCombustibleRepositoryImpl(
-    private val api: RegistroCombustibleApi,
-    private val dao: RegistroCombustibleDao
+    private val dao: RegistroCombustibleDao,
+    private val syncManagerProvider: () -> SyncManager
 ) : RegistroCombustibleRepository {
 
     override fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroCombustible>> {
@@ -20,38 +22,52 @@ class RegistroCombustibleRepositoryImpl(
     }
 
     override suspend fun refreshByVehiculoId(vehiculoId: Long) {
-        try {
-            val remoteRegistros = api.getRegistroCombustibleByVehiculoId(vehiculoId)
-            remoteRegistros.forEach { remote ->
-                val existing = dao.getByServerId(remote.id ?: -1L)
-                if (existing != null) {
-                    dao.update(remote.toRoomEntity(vehiculoId).copy(localId = existing.localId))
-                } else {
-                    dao.insert(remote.toRoomEntity(vehiculoId))
-                }
-            }
-        } catch (e: Exception) {}
+        val remoteList = RetrofitClient.api_registro_combustible.getRegistroCombustibleByVehiculoId(vehiculoId)
+        remoteList.forEach { remote ->
+            upsertFromRemote(remote.toRoomEntity(vehiculoId))
+        }
     }
 
     override suspend fun create(vehiculoId: Long, registro: RegistroCombustible): RegistroCombustible {
-        val created = api.createRegistroCombustible(vehiculoId, registro)
-        dao.insert(created.toRoomEntity(vehiculoId))
-        return created
+        val localId = dao.insert(
+            registro.toRoomEntity(vehiculoId).copy(syncState = SyncState.PENDING_CREATE)
+        )
+        return try {
+            val remote = RetrofitClient.api_registro_combustible.createRegistroCombustible(vehiculoId, registro)
+            persistRemote(remote.toRoomEntity(vehiculoId), localId)
+            dao.getByLocalId(localId)?.toRemoteModel() ?: remote
+        } catch (_: Exception) {
+            dao.getByLocalId(localId)?.toRemoteModel() ?: registro
+        }
     }
 
     override suspend fun getRendimiento(vehiculoId: Long): Double {
-        return try {
-            api.getRendimientoByVehiculoId(vehiculoId)
-        } catch (e: Exception) {
-            0.0
-        }
+        return RetrofitClient.api_registro_combustible.getRendimientoByVehiculoId(vehiculoId)
     }
 
     override suspend fun getTotalGastado(vehiculoId: Long): Double {
-        return try {
-            api.getTotalGastadoByVehiculoId(vehiculoId)
-        } catch (e: Exception) {
-            0.0
+        return RetrofitClient.api_registro_combustible.getTotalGastadoByVehiculoId(vehiculoId)
+    }
+
+    private suspend fun upsertFromRemote(entity: ni.edu.uam.autotrak.data.local.model.RegistroCombustibleEntity) {
+        val existing = entity.serverId?.let { dao.getByServerId(it) }
+        val next = entity.copy(
+            localId = existing?.localId ?: 0,
+            syncState = SyncState.SYNCED
+        )
+        if (existing == null) {
+            dao.insert(next)
+        } else {
+            dao.update(next)
         }
+    }
+
+    private suspend fun persistRemote(entity: ni.edu.uam.autotrak.data.local.model.RegistroCombustibleEntity, localId: Long) {
+        dao.update(
+            entity.copy(
+                localId = localId,
+                syncState = SyncState.SYNCED
+            )
+        )
     }
 }

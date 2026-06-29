@@ -3,6 +3,7 @@ package ni.edu.uam.autotrak.data.local.dao
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -19,10 +20,13 @@ interface UsuarioDao {
     @Query("SELECT * FROM usuarios WHERE serverId = :serverId LIMIT 1")
     suspend fun getByServerId(serverId: Long): UsuarioEntity?
 
-    @Insert
+    @Query("SELECT * FROM usuarios WHERE syncState != 'SYNCED'")
+    suspend fun getPendingSync(): List<UsuarioEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(usuario: UsuarioEntity): Long
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(usuarios: List<UsuarioEntity>): List<Long>
 
     @Update

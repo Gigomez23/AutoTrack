@@ -21,5 +21,7 @@ data class RegistroEntity(
     val vehiculoId: Long? = null,
     val fechaRegistro: LocalDate? = null,
     val nota: String = "",
-    val syncState: SyncState = SyncState.SYNCED
+    val syncState: SyncState = SyncState.SYNCED,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 )

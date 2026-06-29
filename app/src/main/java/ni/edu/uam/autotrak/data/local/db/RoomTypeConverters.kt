@@ -41,4 +41,10 @@ class RoomTypeConverters {
     fun toSyncState(value: String?): SyncState = value
         ?.let { runCatching { SyncState.valueOf(it) }.getOrNull() }
         ?: SyncState.SYNCED
+
+    @TypeConverter
+    fun fromLocalDateTime(value: java.time.LocalDateTime?): String? = value?.toString()
+
+    @TypeConverter
+    fun toLocalDateTime(value: String?): java.time.LocalDateTime? = value?.let { java.time.LocalDateTime.parse(it) }
 }

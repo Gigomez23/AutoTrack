@@ -9,10 +9,13 @@ import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
 import ni.edu.uam.autotrak.data.remote.model.LoginRequest
 import ni.edu.uam.autotrak.data.remote.model.LoginResponse
 import ni.edu.uam.autotrak.data.remote.model.Usuario
+import ni.edu.uam.autotrak.data.sync.SyncManager
+import ni.edu.uam.autotrak.data.sync.SyncState
 
 class UsuarioRepositoryImpl(
     private val usuarioApi: UsuarioApi,
-    private val usuarioDao: UsuarioDao
+    private val usuarioDao: UsuarioDao,
+    private val syncManagerProvider: () -> SyncManager
 ) : UsuarioRepository {
 
     override suspend fun login(request: LoginRequest): LoginResponse {
@@ -26,41 +29,83 @@ class UsuarioRepositoryImpl(
     }
 
     override suspend fun refreshUsuario(id: Long) {
-        try {
-            val remoteUser = usuarioApi.getUsuario(id)
-            val existing = usuarioDao.getByServerId(id)
-            if (existing != null) {
-                usuarioDao.update(remoteUser.toRoomEntity().copy(localId = existing.localId))
-            } else {
-                usuarioDao.insert(remoteUser.toRoomEntity())
-            }
-        } catch (e: Exception) {
-            // Error handling as per requirement: do not clear Room, behave as current application
-        }
+        val remote = usuarioApi.getUsuario(id)
+        upsertFromRemote(remote)
     }
 
     override suspend fun createUsuario(usuario: Usuario): Usuario {
-        val created = usuarioApi.createUsuario(usuario)
-        usuarioDao.insert(created.toRoomEntity())
-        return created
+        val localId = usuarioDao.insert(
+            usuario.toRoomEntity().copy(syncState = SyncState.PENDING_CREATE)
+        )
+        return try {
+            val remote = usuarioApi.createUsuario(usuario)
+            persistRemote(remote, localId)
+            usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: remote
+        } catch (_: Exception) {
+            usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: usuario
+        }
     }
 
     override suspend fun updateUsuario(id: Long, usuario: Usuario): Usuario {
-        val updated = usuarioApi.updateUsuario(id, usuario)
         val existing = usuarioDao.getByServerId(id)
+        val localId = existing?.localId ?: usuarioDao.insert(
+            usuario.toRoomEntity().copy(
+                serverId = id,
+                syncState = SyncState.PENDING_UPDATE
+            )
+        )
+
         if (existing != null) {
-            usuarioDao.update(updated.toRoomEntity().copy(localId = existing.localId))
-        } else {
-            usuarioDao.insert(updated.toRoomEntity())
+            usuarioDao.update(
+                usuario.toRoomEntity().copy(
+                    localId = localId,
+                    serverId = id,
+                    syncState = SyncState.PENDING_UPDATE
+                )
+            )
         }
-        return updated
+
+        return try {
+            val remote = usuarioApi.updateUsuario(id, usuario)
+            persistRemote(remote, localId)
+            usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: remote
+        } catch (_: Exception) {
+            usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: usuario
+        }
     }
 
     override suspend fun deleteUsuario(id: Long) {
-        usuarioApi.deleteUsuario(id)
         val existing = usuarioDao.getByServerId(id)
         if (existing != null) {
-            usuarioDao.delete(existing)
+            usuarioDao.update(existing.copy(syncState = SyncState.PENDING_DELETE))
         }
+        try {
+            usuarioApi.deleteUsuario(id)
+            existing?.let { usuarioDao.delete(it) }
+        } catch (_: Exception) {
+            existing?.let { usuarioDao.update(it.copy(syncState = SyncState.SYNC_FAILED)) }
+        }
+    }
+
+    private suspend fun upsertFromRemote(remote: Usuario) {
+        val existing = remote.id?.let { usuarioDao.getByServerId(it) }
+        val entity = remote.toRoomEntity().copy(
+            localId = existing?.localId ?: 0,
+            syncState = SyncState.SYNCED
+        )
+        if (existing == null) {
+            usuarioDao.insert(entity)
+        } else {
+            usuarioDao.update(entity)
+        }
+    }
+
+    private suspend fun persistRemote(remote: Usuario, localId: Long) {
+        usuarioDao.update(
+            remote.toRoomEntity().copy(
+                localId = localId,
+                syncState = SyncState.SYNCED
+            )
+        )
     }
 }

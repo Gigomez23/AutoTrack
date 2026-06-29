@@ -25,5 +25,7 @@ data class RegistroCombustibleEntity(
     val cantidadCombustible: Double = 0.0,
     val cantidadPagado: BigDecimal = BigDecimal.ZERO,
     val odometro: Long = 0,
-    val syncState: SyncState = SyncState.SYNCED
+    val syncState: SyncState = SyncState.SYNCED,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 )

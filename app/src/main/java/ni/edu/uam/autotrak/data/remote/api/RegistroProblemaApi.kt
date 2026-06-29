@@ -1,6 +1,7 @@
 package ni.edu.uam.autotrak.data.remote.api
 
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
+import ni.edu.uam.autotrak.data.remote.model.sync.RegistroProblemaSyncDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -23,4 +24,7 @@ interface RegistroProblemaApi {
 
     @DELETE("api/v1/problemas/{id}")
     suspend fun deleteRegistroProblema(@Path("id") id: Long)
+
+    @GET("api/v1/problemas/updated-after/{timestamp}")
+    suspend fun getUpdatedAfter(@Path("timestamp") timestamp: Long): List<RegistroProblemaSyncDto>
 }

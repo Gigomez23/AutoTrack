@@ -15,10 +15,16 @@ class UserViewModel(
 
     private val userId = sessionManager.getUserId()
 
+    private val _error = MutableStateFlow<String?>(null)
+
     val uiState: StateFlow<UiState<List<Usuario>>> = if (userId != -1L) {
-        usuarioRepository.observeUsuario(userId)
-            .map { user -> if (user != null) UiState.Success(listOf(user)) else UiState.Loading }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+        combine(usuarioRepository.observeUsuario(userId), _error) { user, error ->
+            when {
+                user != null -> UiState.Success(listOf(user))
+                error != null -> UiState.Error(error)
+                else -> UiState.Loading
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
     } else {
         MutableStateFlow(UiState.Error("No hay usuario seleccionado"))
     }
@@ -33,7 +39,10 @@ class UserViewModel(
         viewModelScope.launch {
             try {
                 usuarioRepository.refreshUsuario(id)
-            } catch (_: Exception) {}
+                _error.value = null
+            } catch (e: Exception) {
+                _error.value = "Error al cargar perfil: ${e.message}"
+            }
         }
     }
 

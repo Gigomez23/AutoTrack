@@ -406,7 +406,7 @@ fun IssueFormScreen(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Guardar", style = MaterialTheme.typography.titleMedium)
+                Text(if (registroToEdit == null) "Guardar" else "Actualizar", style = MaterialTheme.typography.titleMedium)
             }
         }
     }

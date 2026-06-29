@@ -26,9 +26,12 @@ import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
 import ni.edu.uam.autotrak.ui.screens.VehiculoDetalleScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import com.google.gson.Gson
+import android.net.Uri
 
+import ni.edu.uam.autotrak.data.sync.SyncManager
 import ni.edu.uam.autotrak.viewmodel.HomeViewModel
 
 import androidx.compose.ui.platform.LocalContext
@@ -46,10 +49,32 @@ fun MainScreen(
     val context = LocalContext.current
     val database = AppDatabase.getInstance(context)
 
-    val usuarioRepository = UsuarioRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao())
-    val vehiculoRepository = VehiculoRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_vehiculo, database.vehiculoDao())
-    val fuelRepository = RegistroCombustibleRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_combustible, database.registroCombustibleDao())
-    val problemaRepository = RegistroProblemaRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_problema, database.registroProblemaDao())
+    // SyncManager initialization
+    val syncManager = remember {
+        SyncManager(
+            database.syncMetadataDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
+            database.usuarioDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_vehiculo,
+            database.vehiculoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_combustible,
+            database.registroCombustibleDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_problema,
+            database.registroProblemaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro,
+            database.registroDao()
+        )
+    }
+
+    val usuarioRepository = remember { UsuarioRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao()) { syncManager } }
+    val vehiculoRepository = remember { VehiculoRepositoryImpl(database.vehiculoDao()) { syncManager } }
+    val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database.registroCombustibleDao()) { syncManager } }
+    val problemaRepository = remember { RegistroProblemaRepositoryImpl(database.registroProblemaDao()) { syncManager } }
+
+    // App launch sync
+    LaunchedEffect(Unit) {
+        syncManager.syncAll()
+    }
 
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -240,8 +265,9 @@ fun MainScreen(
                         viewModel = issuesViewModel,
                         onAddRegistro = { id -> navController.navigate("issue_form/$id") },
                         onEditRegistro = { vehicleId, issue -> 
-                            val issueJson = Gson().toJson(issue)
-                            navController.navigate("issue_edit/$vehicleId/$issueJson")
+                            val issueJson = RetrofitClient.gson.toJson(issue)
+                            val encodedJson = Uri.encode(issueJson)
+                            navController.navigate("issue_edit/$vehicleId/$encodedJson")
                         }
                     )
                 }
@@ -256,8 +282,9 @@ fun MainScreen(
                         initialVehiculoId = vehiculoId,
                         onAddRegistro = { id -> navController.navigate("issue_form/$id") },
                         onEditRegistro = { vehicleId, issue -> 
-                            val issueJson = Gson().toJson(issue)
-                            navController.navigate("issue_edit/$vehicleId/$issueJson")
+                            val issueJson = RetrofitClient.gson.toJson(issue)
+                            val encodedJson = Uri.encode(issueJson)
+                            navController.navigate("issue_edit/$vehicleId/$encodedJson")
                         }
                     )
                 }
@@ -284,7 +311,7 @@ fun MainScreen(
                 ) { backStackEntry ->
                     val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
                     val issueJson = backStackEntry.arguments?.getString("issueJson") ?: ""
-                    val issue = Gson().fromJson(issueJson, RegistroProblema::class.java)
+                    val issue = RetrofitClient.gson.fromJson(issueJson, RegistroProblema::class.java)
                     IssueFormScreen(
                         viewModel = issuesViewModel,
                         vehiculoId = vehiculoId,

@@ -3,6 +3,7 @@ package ni.edu.uam.autotrak.data.local.dao
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -22,10 +23,13 @@ interface RegistroDao {
     @Query("SELECT * FROM registros WHERE vehiculoId = :vehiculoId ORDER BY fechaRegistro DESC, localId DESC")
     fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroEntity>>
 
-    @Insert
+    @Query("SELECT * FROM registros WHERE syncState != 'SYNCED'")
+    suspend fun getPendingSync(): List<RegistroEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(registro: RegistroEntity): Long
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(registros: List<RegistroEntity>): List<Long>
 
     @Update

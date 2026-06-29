@@ -116,19 +116,41 @@ class HomeViewModel(
         if (userId == -1L) return
 
         viewModelScope.launch {
+            _refreshing.value = true
             try {
-                _refreshing.value = true
-                usuarioRepository.refreshUsuario(userId)
-                vehiculoRepository.refreshVehiculos(userId)
+                // Perform refreshes independently so one failure doesn't block others
+                try {
+                    usuarioRepository.refreshUsuario(userId)
+                } catch (e: Exception) {
+                    // Log or handle error
+                }
                 
-                val vehicles = vehiculoRepository.observeVehiculos(userId).first()
+                try {
+                    vehiculoRepository.refreshVehiculos(userId)
+                } catch (e: Exception) {
+                    // Log or handle error
+                }
+                
+                val vehicles = try {
+                    vehiculoRepository.observeVehiculos(userId).first()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+
                 vehicles.forEach { v ->
                     v.id?.let { id ->
-                        problemaRepository.refreshByVehiculoId(id)
-                        fuelRepository.refreshByVehiculoId(id)
+                        launch {
+                            try {
+                                problemaRepository.refreshByVehiculoId(id)
+                            } catch (e: Exception) {}
+                        }
+                        launch {
+                            try {
+                                fuelRepository.refreshByVehiculoId(id)
+                            } catch (e: Exception) {}
+                        }
                     }
                 }
-            } catch (_: Exception) {
             } finally {
                 _refreshing.value = false
             }

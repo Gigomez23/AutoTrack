@@ -10,5 +10,6 @@ data class Usuario(
     val username: String? = "",
     val password: String? = "",
     val pais: String? = "",
-//    val vehiculos: List<Vehiculo>? = null,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 )

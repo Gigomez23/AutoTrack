@@ -26,5 +26,7 @@ data class VehiculoEntity(
     val apodo: String = "",
     val imagenes: List<String> = emptyList(),
     val usuarioId: Long? = null,
-    val syncState: SyncState = SyncState.SYNCED
+    val syncState: SyncState = SyncState.SYNCED,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 )

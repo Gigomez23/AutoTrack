@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,10 +41,29 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation(sessionManager: SessionManager) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val database = ni.edu.uam.autotrak.data.local.db.AppDatabase.getInstance(context)
-    val usuarioRepository = ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl(
-        ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
-        database.usuarioDao()
-    )
+    
+    val syncManager = remember {
+        ni.edu.uam.autotrak.data.sync.SyncManager(
+            database.syncMetadataDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
+            database.usuarioDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_vehiculo,
+            database.vehiculoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_combustible,
+            database.registroCombustibleDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_problema,
+            database.registroProblemaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro,
+            database.registroDao()
+        )
+    }
+
+    val usuarioRepository = remember {
+        ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl(
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
+            database.usuarioDao()
+        ) { syncManager }
+    }
 
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {

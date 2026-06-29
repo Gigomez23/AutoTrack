@@ -5,12 +5,14 @@ import kotlinx.coroutines.flow.map
 import ni.edu.uam.autotrak.data.local.dao.RegistroDao
 import ni.edu.uam.autotrak.data.mapper.toRemoteModel
 import ni.edu.uam.autotrak.data.mapper.toRoomEntity
-import ni.edu.uam.autotrak.data.remote.api.RegistroApi
 import ni.edu.uam.autotrak.data.remote.model.RegistroGeneral
+import ni.edu.uam.autotrak.data.remote.RetrofitClient
+import ni.edu.uam.autotrak.data.sync.SyncManager
+import ni.edu.uam.autotrak.data.sync.SyncState
 
 class RegistroRepositoryImpl(
-    private val api: RegistroApi,
-    private val dao: RegistroDao
+    private val dao: RegistroDao,
+    private val syncManagerProvider: () -> SyncManager
 ) : RegistroRepository {
 
     override fun observeAll(): Flow<List<RegistroGeneral>> {
@@ -20,17 +22,9 @@ class RegistroRepositoryImpl(
     }
 
     override suspend fun refreshAll() {
-        try {
-            val remote = api.getRegistros()
-            remote.forEach { r ->
-                val existing = dao.getByServerId(r.id ?: -1L)
-                if (existing != null) {
-                    dao.update(r.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId))
-                } else {
-                    dao.insert(r.toRoomEntity())
-                }
-            }
-        } catch (e: Exception) {}
+        RetrofitClient.api_registro.getRegistros().forEach { remote ->
+            upsertFromRemote(remote.toRoomEntity())
+        }
     }
 
     override fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroGeneral>> {
@@ -40,24 +34,34 @@ class RegistroRepositoryImpl(
     }
 
     override suspend fun refreshByVehiculoId(vehiculoId: Long) {
-        try {
-            val remote = api.getRegistrosByVehiculoId(vehiculoId)
-            remote.forEach { r ->
-                val existing = dao.getByServerId(r.id ?: -1L)
-                if (existing != null) {
-                    dao.update(r.toRoomEntity(vehiculoId).copy(localId = existing.localId))
-                } else {
-                    dao.insert(r.toRoomEntity(vehiculoId))
-                }
-            }
-        } catch (e: Exception) {}
+        RetrofitClient.api_registro.getRegistrosByVehiculoId(vehiculoId).forEach { remote ->
+            upsertFromRemote(remote.toRoomEntity(vehiculoId))
+        }
     }
 
     override suspend fun delete(id: Long) {
-        api.deleteRegistro(id)
         val existing = dao.getByServerId(id)
         if (existing != null) {
-            dao.delete(existing)
+            dao.update(existing.copy(syncState = SyncState.PENDING_DELETE))
+        }
+        try {
+            RetrofitClient.api_registro.deleteRegistro(id)
+            existing?.let { dao.delete(it) }
+        } catch (_: Exception) {
+            existing?.let { dao.update(it.copy(syncState = SyncState.SYNC_FAILED)) }
+        }
+    }
+
+    private suspend fun upsertFromRemote(entity: ni.edu.uam.autotrak.data.local.model.RegistroEntity) {
+        val existing = entity.serverId?.let { dao.getByServerId(it) }
+        val next = entity.copy(
+            localId = existing?.localId ?: 0,
+            syncState = SyncState.SYNCED
+        )
+        if (existing == null) {
+            dao.insert(next)
+        } else {
+            dao.update(next)
         }
     }
 }

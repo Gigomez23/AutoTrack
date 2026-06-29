@@ -24,5 +24,7 @@ data class RegistroProblemaEntity(
     val activo: Boolean = true,
     val afectaVehiculo: Boolean = false,
     val tipoProblema: String = "",
-    val syncState: SyncState = SyncState.SYNCED
+    val syncState: SyncState = SyncState.SYNCED,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 )

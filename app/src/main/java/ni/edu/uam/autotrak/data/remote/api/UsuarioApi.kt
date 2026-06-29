@@ -3,6 +3,7 @@ package ni.edu.uam.autotrak.data.remote.api
 import ni.edu.uam.autotrak.data.remote.model.LoginRequest
 import ni.edu.uam.autotrak.data.remote.model.LoginResponse
 import ni.edu.uam.autotrak.data.remote.model.Usuario
+import ni.edu.uam.autotrak.data.remote.model.sync.UsuarioSyncDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -25,4 +26,7 @@ interface UsuarioApi {
 
     @DELETE("api/v1/usuarios/{id}")
     suspend fun deleteUsuario(@Path("id") id: Long)
+
+    @GET("api/v1/usuarios/updated-after/{timestamp}")
+    suspend fun getUpdatedAfter(@Path("timestamp") timestamp: Long): List<UsuarioSyncDto>
 }

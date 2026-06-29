@@ -2,6 +2,8 @@ package ni.edu.uam.autotrak.data.mapper
 
 import ni.edu.uam.autotrak.data.local.model.RegistroCombustibleEntity
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
+import ni.edu.uam.autotrak.data.remote.model.sync.RegistroCombustibleSyncDto
+import ni.edu.uam.autotrak.data.sync.SyncState
 
 fun RegistroCombustible.toRoomEntity(vehiculoId: Long? = null): RegistroCombustibleEntity {
     return RegistroCombustibleEntity(
@@ -11,7 +13,24 @@ fun RegistroCombustible.toRoomEntity(vehiculoId: Long? = null): RegistroCombusti
         nota = nota.orEmpty(),
         cantidadCombustible = cantidadCombustible,
         cantidadPagado = cantidadPagado ?: java.math.BigDecimal.ZERO,
-        odometro = odometro
+        odometro = odometro,
+        fechaCreacion = fechaCreacion,
+        fechaActualizacion = fechaActualizacion
+    )
+}
+
+fun RegistroCombustibleSyncDto.toRoomEntity(vehiculoId: Long? = null): RegistroCombustibleEntity {
+    return RegistroCombustibleEntity(
+        serverId = id,
+        vehiculoId = vehiculoId ?: this.vehiculoId,
+        fechaRegistro = fechaRegistro,
+        nota = nota.orEmpty(),
+        cantidadCombustible = cantidadCombustible,
+        cantidadPagado = cantidadPagado ?: java.math.BigDecimal.ZERO,
+        odometro = odometro,
+        fechaCreacion = fechaCreacion,
+        fechaActualizacion = fechaActualizacion,
+        syncState = SyncState.SYNCED
     )
 }
 
@@ -22,6 +41,8 @@ fun RegistroCombustibleEntity.toRemoteModel(): RegistroCombustible {
         nota = nota,
         cantidadCombustible = cantidadCombustible,
         cantidadPagado = cantidadPagado,
-        odometro = odometro
+        odometro = odometro,
+        fechaCreacion = fechaCreacion,
+        fechaActualizacion = fechaActualizacion
     )
 }

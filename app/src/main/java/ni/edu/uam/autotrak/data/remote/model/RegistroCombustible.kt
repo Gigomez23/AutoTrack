@@ -12,4 +12,6 @@ data class RegistroCombustible(
     val cantidadPagado: BigDecimal? = 0.0.toBigDecimal(),
 //    val distanciaRecorrida: Double = 0.0,
     val odometro: Long = 0,
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 ) : Registro

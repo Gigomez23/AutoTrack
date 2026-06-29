@@ -9,5 +9,7 @@ data class RegistroProblema(
 //    override val vehiculo: Vehiculo? = null,
     val activo: Boolean = true,
     val afectaVehiculo: Boolean = false,
-    val tipoProblema: String? = ""
+    val tipoProblema: String? = "",
+    val fechaCreacion: java.time.LocalDateTime? = null,
+    val fechaActualizacion: java.time.LocalDateTime? = null
 ) : Registro

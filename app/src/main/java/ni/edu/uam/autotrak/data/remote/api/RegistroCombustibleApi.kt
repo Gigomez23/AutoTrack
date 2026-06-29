@@ -1,6 +1,7 @@
 package ni.edu.uam.autotrak.data.remote.api
 
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
+import ni.edu.uam.autotrak.data.remote.model.sync.RegistroCombustibleSyncDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -21,4 +22,7 @@ interface RegistroCombustibleApi {
 
     @GET("api/v1/combustibles/vehiculo/{vehiculoId}/rendimiento")
     suspend fun getRendimientoByVehiculoId(@Path("vehiculoId") vehiculoId: Long): Double
+
+    @GET("api/v1/combustibles/updated-after/{timestamp}")
+    suspend fun getUpdatedAfter(@Path("timestamp") timestamp: Long): List<RegistroCombustibleSyncDto>
 }
