@@ -42,6 +42,7 @@ fun RegistroCombustibleEntity.toRemoteModel(): RegistroCombustible {
         cantidadCombustible = cantidadCombustible,
         cantidadPagado = cantidadPagado,
         odometro = odometro,
+        syncState = syncState,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
     )

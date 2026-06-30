@@ -1,5 +1,7 @@
 package ni.edu.uam.autotrak.data.remote.model
 
+import ni.edu.uam.autotrak.data.sync.SyncState
+
 data class Vehiculo(
     val id: Long? = null,
     val marca: String? = "",
@@ -13,6 +15,7 @@ data class Vehiculo(
     val imagenes: List<String>? = emptyList(),
 //    val distanciaRecorrida: Long = 0,
     val usuario: Usuario? = null,
+    val syncState: SyncState = SyncState.SYNCED,
     val fechaCreacion: java.time.LocalDateTime? = null,
     val fechaActualizacion: java.time.LocalDateTime? = null
 )

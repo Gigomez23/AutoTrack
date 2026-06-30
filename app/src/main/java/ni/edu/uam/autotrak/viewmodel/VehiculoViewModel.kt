@@ -27,6 +27,9 @@ class VehiculoViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery = _searchQuery.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
     private val _selectedVehicleId = MutableStateFlow<Long?>(null)
 
     // Primary UI State for Vehicle List
@@ -178,6 +181,7 @@ class VehiculoViewModel(
     fun cargarVehiculos() {
         if (userId == -1L) return
         viewModelScope.launch {
+            _isRefreshing.value = true
             try {
                 vehiculoRepository.refreshVehiculos(userId)
                 
@@ -188,7 +192,10 @@ class VehiculoViewModel(
                         fuelRepository.refreshByVehiculoId(vid)
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 

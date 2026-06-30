@@ -27,15 +27,22 @@ import ni.edu.uam.autotrak.data.remote.model.Vehiculo
 import ni.edu.uam.autotrak.viewmodel.UiState
 import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
 
+import ni.edu.uam.autotrak.ui.components.OfflineBanner
+import ni.edu.uam.autotrak.ui.components.SyncStatusBadge
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehiculoScreen(
     viewModel: VehiculoViewModel,
+    isOffline: Boolean,
     onVehicleClick: (Long) -> Unit,
     onAddVehicle: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val vehicleSummaries by viewModel.vehicleSummaries.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     val filteredVehiculos = remember(uiState, searchQuery) {
         if (uiState is UiState.Success) {
@@ -57,6 +64,18 @@ fun VehiculoScreen(
     }
 
     Scaffold(
+        topBar = {
+            Column {
+                TopAppBar(
+                    title = { Text("Mis Vehículos") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
+                OfflineBanner(isOffline = isOffline)
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddVehicle) {
                 Icon(Icons.Default.Add, contentDescription = "Add Vehicle")
@@ -83,9 +102,13 @@ fun VehiculoScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.cargarVehiculos() },
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
                 when (val state = uiState) {
-                    is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    is UiState.Loading -> if (!isRefreshing) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is UiState.Error -> Text(
                         text = state.message,
                         color = MaterialTheme.colorScheme.error,
@@ -166,16 +189,20 @@ fun VehiculoItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = vehiculo.placa ?: "SIN PLACA",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = vehiculo.placa ?: "SIN PLACA",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        SyncStatusBadge(syncState = vehiculo.syncState)
                     }
                 }
                 IconButton(onClick = onDelete) {

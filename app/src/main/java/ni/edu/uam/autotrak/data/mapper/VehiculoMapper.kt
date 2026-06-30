@@ -53,6 +53,7 @@ fun VehiculoEntity.toRemoteModel(): Vehiculo {
         apodo = apodo,
         imagenes = imagenes,
         usuario = usuarioId?.let { Usuario(id = it) },
+        syncState = syncState,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
     )

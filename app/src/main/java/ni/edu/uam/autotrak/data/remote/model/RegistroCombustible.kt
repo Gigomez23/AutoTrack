@@ -1,5 +1,6 @@
 package ni.edu.uam.autotrak.data.remote.model
 
+import ni.edu.uam.autotrak.data.sync.SyncState
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -12,6 +13,7 @@ data class RegistroCombustible(
     val cantidadPagado: BigDecimal? = 0.0.toBigDecimal(),
 //    val distanciaRecorrida: Double = 0.0,
     val odometro: Long = 0,
+    val syncState: SyncState = SyncState.SYNCED,
     val fechaCreacion: java.time.LocalDateTime? = null,
     val fechaActualizacion: java.time.LocalDateTime? = null
 ) : Registro

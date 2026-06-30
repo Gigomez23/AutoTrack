@@ -42,6 +42,7 @@ fun RegistroProblemaEntity.toRemoteModel(): RegistroProblema {
         activo = activo,
         afectaVehiculo = afectaVehiculo,
         tipoProblema = tipoProblema,
+        syncState = syncState,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
     )

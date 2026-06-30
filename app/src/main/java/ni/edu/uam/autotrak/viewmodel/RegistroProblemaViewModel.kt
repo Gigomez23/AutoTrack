@@ -49,6 +49,9 @@ class RegistroProblemaViewModel(
     private val _sort = MutableStateFlow(ProblemSort.NEWEST)
     val sort = _sort.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
     // Single source of truth from Room, reacting to selection
     private val _rawRegistros: Flow<List<RegistroProblema>> = _selectedVehiculoId
         .flatMapLatest { id ->
@@ -101,9 +104,13 @@ class RegistroProblemaViewModel(
 
     fun cargarRegistrosProblema(vehiculoId: Long) {
         viewModelScope.launch {
+            _isRefreshing.value = true
             try {
                 problemaRepository.refreshByVehiculoId(vehiculoId)
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 

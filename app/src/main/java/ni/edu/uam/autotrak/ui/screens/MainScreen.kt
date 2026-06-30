@@ -37,6 +37,7 @@ import ni.edu.uam.autotrak.viewmodel.HomeViewModel
 import androidx.compose.ui.platform.LocalContext
 import ni.edu.uam.autotrak.data.local.db.AppDatabase
 import ni.edu.uam.autotrak.data.repository.*
+import ni.edu.uam.autotrak.util.NetworkConnectivityObserver
 
 data class MenuItem(val title: String, val route: String, val icon: ImageVector)
 
@@ -48,6 +49,10 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val database = AppDatabase.getInstance(context)
+    
+    val connectivityObserver = remember { NetworkConnectivityObserver(context) }
+    val isOnline by connectivityObserver.isOnline.collectAsState(initial = true)
+    val isOffline = !isOnline
 
     // SyncManager initialization
     val syncManager = remember {
@@ -173,6 +178,7 @@ fun MainScreen(
                 composable(Screen.Home.route) { 
                     HomeScreen(
                         viewModel = homeViewModel,
+                        isOffline = isOffline,
                         onNavigateToVehicles = { navController.navigate(Screen.Vehicles.route) },
                         onNavigateToFuel = { navController.navigate(Screen.FuelLogs.route) },
                         onNavigateToIssues = { navController.navigate(Screen.Issues.route) },
@@ -183,6 +189,7 @@ fun MainScreen(
                 composable(Screen.Vehicles.route) {
                     VehiculoScreen(
                         viewModel = vehiculoViewModel,
+                        isOffline = isOffline,
                         onVehicleClick = { id -> 
                             navController.navigate(Screen.VehicleDetail.createRoute(id))
                         },
@@ -200,6 +207,7 @@ fun MainScreen(
                     VehiculoDetalleScreen(
                         viewModel = vehiculoViewModel,
                         vehiculoId = id,
+                        isOffline = isOffline,
                         onEdit = { vehicleId ->
                             navController.navigate("vehicle_edit/$vehicleId")
                         },
@@ -231,6 +239,7 @@ fun MainScreen(
                 composable(Screen.FuelLogs.route) {
                     RegistroCombustibleScreen(
                         viewModel = fuelViewModel,
+                        isOffline = isOffline,
                         onAddRegistro = { id -> navController.navigate("fuel_form/$id") }
                     )
                 }
@@ -242,6 +251,7 @@ fun MainScreen(
                     val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
                     RegistroCombustibleScreen(
                         viewModel = fuelViewModel,
+                        isOffline = isOffline,
                         initialVehiculoId = vehiculoId,
                         onAddRegistro = { id -> navController.navigate("fuel_form/$id") }
                     )
@@ -263,6 +273,7 @@ fun MainScreen(
                 composable(Screen.Issues.route) {
                     RegistroProblemaScreen(
                         viewModel = issuesViewModel,
+                        isOffline = isOffline,
                         onAddRegistro = { id -> navController.navigate("issue_form/$id") },
                         onEditRegistro = { vehicleId, issue -> 
                             val issueJson = RetrofitClient.gson.toJson(issue)
@@ -279,6 +290,7 @@ fun MainScreen(
                     val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
                     RegistroProblemaScreen(
                         viewModel = issuesViewModel,
+                        isOffline = isOffline,
                         initialVehiculoId = vehiculoId,
                         onAddRegistro = { id -> navController.navigate("issue_form/$id") },
                         onEditRegistro = { vehicleId, issue -> 

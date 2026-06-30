@@ -46,6 +46,9 @@ class RegistroCombustibleViewModel(
     private val _selectedChartType = MutableStateFlow(FuelChartType.LINE)
     val selectedChartType = _selectedChartType.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
     // Observable data from Room, reacting to selected vehicle
     val uiState: StateFlow<UiState<List<RegistroCombustible>>> = _selectedVehiculoId
         .flatMapLatest { id ->
@@ -84,9 +87,13 @@ class RegistroCombustibleViewModel(
 
     fun cargarRegistrosCombustible(vehiculoId: Long) {
         viewModelScope.launch {
+            _isRefreshing.value = true
             try {
                 fuelRepository.refreshByVehiculoId(vehiculoId)
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 

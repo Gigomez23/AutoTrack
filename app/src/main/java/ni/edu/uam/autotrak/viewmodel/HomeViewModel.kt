@@ -62,6 +62,7 @@ class HomeViewModel(
     }
 
     private val _refreshing = MutableStateFlow(false)
+    val isRefreshing = _refreshing.asStateFlow()
 
     val uiState: StateFlow<HomeUiState> = if (userId != -1L) {
         val userFlow = usuarioRepository.observeUsuario(userId)
