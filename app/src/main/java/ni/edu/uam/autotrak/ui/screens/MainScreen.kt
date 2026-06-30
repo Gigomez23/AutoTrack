@@ -27,7 +27,9 @@ import ni.edu.uam.autotrak.ui.screens.VehiculoDetalleScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import ni.edu.uam.autotrak.data.remote.RetrofitClient
+import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
+import ni.edu.uam.autotrak.ui.components.ServerStatusIndicator
 import com.google.gson.Gson
 import android.net.Uri
 
@@ -45,6 +47,7 @@ data class MenuItem(val title: String, val route: String, val icon: ImageVector)
 @Composable
 fun MainScreen(
     sessionManager: SessionManager,
+    serverStatusMonitor: ServerStatusMonitor,
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
@@ -57,6 +60,7 @@ fun MainScreen(
     // SyncManager initialization
     val syncManager = remember {
         SyncManager(
+            database,
             database.syncMetadataDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
             database.usuarioDao(),
@@ -71,10 +75,10 @@ fun MainScreen(
         )
     }
 
-    val usuarioRepository = remember { UsuarioRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao()) { syncManager } }
-    val vehiculoRepository = remember { VehiculoRepositoryImpl(database.vehiculoDao()) { syncManager } }
-    val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database.registroCombustibleDao()) { syncManager } }
-    val problemaRepository = remember { RegistroProblemaRepositoryImpl(database.registroProblemaDao()) { syncManager } }
+    val usuarioRepository = remember { UsuarioRepositoryImpl(database, ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao()) { syncManager } }
+    val vehiculoRepository = remember { VehiculoRepositoryImpl(database, database.vehiculoDao(), { syncManager }) }
+    val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database, database.registroCombustibleDao(), { syncManager }) }
+    val problemaRepository = remember { RegistroProblemaRepositoryImpl(database, database.registroProblemaDao(), { syncManager }) }
 
     // App launch sync
     LaunchedEffect(Unit) {
@@ -166,6 +170,9 @@ fun MainScreen(
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Default.Menu, contentDescription = "Menu")
                         }
+                    },
+                    actions = {
+                        ServerStatusIndicator(monitor = serverStatusMonitor)
                     }
                 )
             }

@@ -36,7 +36,7 @@ fun RegistroProblemaSyncDto.toRoomEntity(vehiculoId: Long? = null): RegistroProb
 
 fun RegistroProblemaEntity.toRemoteModel(): RegistroProblema {
     return RegistroProblema(
-        id = serverId,
+        id = serverId ?: localId.takeIf { it > 0 }?.let { -it },
         fechaRegistro = fechaRegistro,
         nota = nota,
         activo = activo,

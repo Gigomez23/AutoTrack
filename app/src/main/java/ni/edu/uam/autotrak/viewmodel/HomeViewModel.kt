@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import ni.edu.uam.autotrak.data.remote.SessionManager
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
@@ -131,19 +133,19 @@ class HomeViewModel(
                     emptyList()
                 }
 
-                vehicles.forEach { v ->
-                    v.id?.let { id ->
-                        launch {
-                            try {
-                                problemaRepository.refreshByVehiculoId(id)
-                            } catch (e: Exception) {}
+                coroutineScope {
+                    vehicles.mapNotNull { v ->
+                        v.id?.let { id ->
+                            async {
+                                try {
+                                    problemaRepository.refreshByVehiculoId(id)
+                                    fuelRepository.refreshByVehiculoId(id)
+                                } catch (e: Exception) {
+                                    // Keep the dashboard visible even if one child refresh fails.
+                                }
+                            }
                         }
-                        launch {
-                            try {
-                                fuelRepository.refreshByVehiculoId(id)
-                            } catch (e: Exception) {}
-                        }
-                    }
+                    }.forEach { it.await() }
                 }
             } finally {
                 _refreshing.value = false
