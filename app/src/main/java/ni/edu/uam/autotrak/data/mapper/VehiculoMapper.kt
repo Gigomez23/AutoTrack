@@ -43,7 +43,7 @@ fun VehiculoSyncDto.toRoomEntity(): VehiculoEntity {
 
 fun VehiculoEntity.toRemoteModel(): Vehiculo {
     return Vehiculo(
-        id = serverId,
+        id = serverId ?: localId.takeIf { it > 0 }?.let { -it },
         marca = marca,
         modelo = modelo,
         anio = anio,

@@ -23,6 +23,9 @@ interface RegistroDao {
     @Query("SELECT * FROM registros WHERE vehiculoId = :vehiculoId ORDER BY fechaRegistro DESC, localId DESC")
     fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroEntity>>
 
+    @Query("UPDATE registros SET vehiculoId = :newVehiculoId WHERE vehiculoId = :oldVehiculoId")
+    suspend fun updateVehiculoId(oldVehiculoId: Long, newVehiculoId: Long)
+
     @Query("SELECT * FROM registros WHERE syncState != 'SYNCED'")
     suspend fun getPendingSync(): List<RegistroEntity>
 

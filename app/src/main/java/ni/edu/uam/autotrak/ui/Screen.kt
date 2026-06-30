@@ -2,6 +2,7 @@ package ni.edu.uam.autotrak.ui
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
+    object Signup : Screen("signup")
     object Home : Screen("home")
     object Vehicles : Screen("vehicles")
     object VehicleDetail : Screen("vehicle_detail/{id}") {

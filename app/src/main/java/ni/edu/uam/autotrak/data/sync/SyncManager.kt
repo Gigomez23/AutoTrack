@@ -1,11 +1,29 @@
 package ni.edu.uam.autotrak.data.sync
 
-import ni.edu.uam.autotrak.data.local.dao.*
-import ni.edu.uam.autotrak.data.local.model.*
-import ni.edu.uam.autotrak.data.mapper.*
-import ni.edu.uam.autotrak.data.remote.api.*
+import android.util.Log
+import androidx.room.withTransaction
+import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
+import ni.edu.uam.autotrak.data.local.dao.RegistroDao
+import ni.edu.uam.autotrak.data.local.dao.RegistroProblemaDao
+import ni.edu.uam.autotrak.data.local.dao.SyncMetadataDao
+import ni.edu.uam.autotrak.data.local.dao.UsuarioDao
+import ni.edu.uam.autotrak.data.local.dao.VehiculoDao
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
+import ni.edu.uam.autotrak.data.local.model.SyncMetadataEntity
+import ni.edu.uam.autotrak.data.mapper.toRemoteModel
+import ni.edu.uam.autotrak.data.mapper.toRoomEntity
+import ni.edu.uam.autotrak.data.remote.api.RegistroApi
+import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
+import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
+import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
+import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_PROBLEMA
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_VEHICULO
 
 class SyncManager(
+    private val database: AppDatabase,
     private val syncMetadataDao: SyncMetadataDao,
     private val usuarioApi: UsuarioApi,
     private val usuarioDao: UsuarioDao,
@@ -26,22 +44,31 @@ class SyncManager(
 
     suspend fun syncEntity(entityName: String) {
         when (entityName) {
-            SyncConstants.ENTITY_USUARIO -> {
+            ENTITY_USUARIO -> {
                 pushUsuario()
                 pullUsuario()
             }
-            SyncConstants.ENTITY_VEHICULO -> {
+            ENTITY_VEHICULO -> {
                 pushVehiculo()
                 pullVehiculo()
             }
-            SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE -> {
+            ENTITY_REGISTRO_COMBUSTIBLE -> {
                 pushFuel()
                 pullFuel()
             }
-            SyncConstants.ENTITY_REGISTRO_PROBLEMA -> {
+            ENTITY_REGISTRO_PROBLEMA -> {
                 pushProblems()
                 pullProblems()
             }
+        }
+    }
+
+    suspend fun relinkVehicleChildren(oldVehicleId: Long, newVehicleId: Long) {
+        if (oldVehicleId == newVehicleId) return
+        database.withTransaction {
+            registroDao.updateVehiculoId(oldVehicleId, newVehicleId)
+            fuelDao.updateVehiculoId(oldVehicleId, newVehicleId)
+            problemDao.updateVehiculoId(oldVehicleId, newVehicleId)
         }
     }
 
@@ -64,8 +91,8 @@ class SyncManager(
     private suspend inline fun runSyncStep(crossinline block: suspend () -> Unit) {
         try {
             block()
-        } catch (_: Exception) {
-            // Keep processing the remaining entities.
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Sync step failed", e)
         }
     }
 
@@ -82,45 +109,57 @@ class SyncManager(
                     SyncState.PENDING_UPDATE -> local.serverId?.let { usuarioApi.updateUsuario(it, local.toRemoteModel()) }
                     SyncState.PENDING_DELETE -> {
                         local.serverId?.let { usuarioApi.deleteUsuario(it) }
-                        usuarioDao.delete(local)
+                        database.withTransaction { usuarioDao.delete(local) }
                         null
                     }
                     else -> null
                 }
                 remote?.let {
-                    val entity = it.toRoomEntity().copy(
-                        localId = local.localId,
-                        syncState = SyncState.SYNCED
-                    )
-                    usuarioDao.update(entity)
+                    database.withTransaction {
+                        usuarioDao.update(
+                            it.toRoomEntity().copy(
+                                localId = local.localId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push usuario ${local.localId}", e)
+            }
         }
     }
 
     suspend fun pullUsuario() {
-        val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_USUARIO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_USUARIO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = usuarioApi.getUpdatedAfter(lastSync)
-            remoteList.forEach { remote ->
-                val existing = remote.id?.let { usuarioDao.getByServerId(it) }
-                
-                if (remote.eliminado) {
-                    existing?.let { usuarioDao.delete(it) }
-                } else {
-                    if (existing == null) {
-                        usuarioDao.insert(remote.toRoomEntity())
-                    } else if (existing.syncState == SyncState.SYNCED) {
-                        // Only pull if local is not pending changes, or use conflict resolution
-                        if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
-                            remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            usuarioDao.update(remote.toRoomEntity().copy(localId = existing.localId))
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { usuarioDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { usuarioDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity().copy(
+                            localId = existing?.localId ?: 0,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            usuarioDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                usuarioDao.update(next)
+                            }
                         }
                     }
                 }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_USUARIO, System.currentTimeMillis()))
             }
-            syncMetadataDao.upsert(SyncMetadataEntity(SyncConstants.ENTITY_USUARIO, System.currentTimeMillis()))
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull usuarios", e)
+        }
     }
 
     // --- VEHICULO ---
@@ -132,149 +171,188 @@ class SyncManager(
                     SyncState.PENDING_UPDATE -> local.serverId?.let { vehiculoApi.updateVehiculo(it, local.toRemoteModel()) }
                     SyncState.PENDING_DELETE -> {
                         local.serverId?.let { vehiculoApi.deleteVehiculo(it) }
-                        vehiculoDao.delete(local)
+                        database.withTransaction { vehiculoDao.delete(local) }
                         null
                     }
                     else -> null
                 }
                 remote?.let {
-                    val entity = it.toRoomEntity().copy(
-                        localId = local.localId,
-                        usuarioId = it.usuario?.id ?: local.usuarioId,
-                        syncState = SyncState.SYNCED
-                    )
-                    vehiculoDao.update(entity)
+                    database.withTransaction {
+                        vehiculoDao.update(
+                            it.toRoomEntity().copy(
+                                localId = local.localId,
+                                usuarioId = it.usuario?.id ?: local.usuarioId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
+                    if (local.serverId == null) {
+                        it.id?.let { newServerId -> relinkVehicleChildren(-local.localId, newServerId) }
+                    }
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push vehiculo ${local.localId}", e)
+            }
         }
     }
 
     suspend fun pullVehiculo() {
-        val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_VEHICULO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_VEHICULO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = vehiculoApi.getUpdatedAfter(lastSync)
-            remoteList.forEach { remote ->
-                val existing = remote.id?.let { vehiculoDao.getByServerId(it) }
-                
-                if (remote.eliminado) {
-                    existing?.let { vehiculoDao.delete(it) }
-                } else {
-                    if (existing == null) {
-                        vehiculoDao.insert(remote.toRoomEntity())
-                    } else if (existing.syncState == SyncState.SYNCED) {
-                        if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
-                            remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            val entity = remote.toRoomEntity().copy(
-                                localId = existing.localId,
-                                usuarioId = remote.usuario?.id ?: existing.usuarioId
-                            )
-                            vehiculoDao.update(entity)
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { vehiculoDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { vehiculoDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity().copy(
+                            localId = existing?.localId ?: 0,
+                            usuarioId = remote.usuario?.id ?: existing?.usuarioId,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            vehiculoDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                vehiculoDao.update(next)
+                            }
                         }
                     }
                 }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_VEHICULO, System.currentTimeMillis()))
             }
-            syncMetadataDao.upsert(SyncMetadataEntity(SyncConstants.ENTITY_VEHICULO, System.currentTimeMillis()))
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull vehiculos", e)
+        }
     }
 
     // --- FUEL ---
     suspend fun pushFuel() {
         fuelDao.getPendingSync().forEach { local ->
             try {
+                val parentId = local.vehiculoId
                 val remote = when (local.syncState) {
-                    SyncState.PENDING_CREATE -> local.vehiculoId?.let { fuelApi.createRegistroCombustible(it, local.toRemoteModel()) }
-                    SyncState.PENDING_UPDATE -> local.serverId?.let { fuelApi.updateRegistroCombustible(it, local.toRemoteModel()) }
+                    SyncState.PENDING_CREATE -> parentId?.takeIf { it > 0 }?.let { fuelApi.createRegistroCombustible(it, local.toRemoteModel()) }
+                    SyncState.PENDING_UPDATE -> local.serverId?.takeIf { parentId != null && parentId > 0 }?.let { fuelApi.updateRegistroCombustible(it, local.toRemoteModel()) }
                     SyncState.PENDING_DELETE -> {
                         local.serverId?.let { fuelApi.deleteRegistroCombustible(it) }
-                        fuelDao.delete(local)
+                        database.withTransaction { fuelDao.delete(local) }
                         null
                     }
                     else -> null
                 }
                 remote?.let {
-                    val entity = it.toRoomEntity(local.vehiculoId).copy(
-                        localId = local.localId,
-                        syncState = SyncState.SYNCED
-                    )
-                    fuelDao.update(entity)
+                    database.withTransaction {
+                        fuelDao.update(
+                            it.toRoomEntity(local.vehiculoId).copy(
+                                localId = local.localId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push fuel ${local.localId}", e)
+            }
         }
     }
 
     suspend fun pullFuel() {
-        val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_REGISTRO_COMBUSTIBLE)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = fuelApi.getUpdatedAfter(lastSync)
-            remoteList.forEach { remote ->
-                val existing = remote.id?.let { fuelDao.getByServerId(it) }
-                
-                if (remote.eliminado) {
-                    existing?.let { fuelDao.delete(it) }
-                } else {
-                    if (existing == null) {
-                        fuelDao.insert(remote.toRoomEntity())
-                    } else if (existing.syncState == SyncState.SYNCED) {
-                        if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
-                            remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            val entity = remote.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId)
-                            fuelDao.update(entity)
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { fuelDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { fuelDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity(existing?.vehiculoId).copy(
+                            localId = existing?.localId ?: 0,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            fuelDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                fuelDao.update(next)
+                            }
                         }
                     }
                 }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_REGISTRO_COMBUSTIBLE, System.currentTimeMillis()))
             }
-            syncMetadataDao.upsert(SyncMetadataEntity(SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE, System.currentTimeMillis()))
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull fuel records", e)
+        }
     }
 
     // --- PROBLEMS ---
     suspend fun pushProblems() {
         problemDao.getPendingSync().forEach { local ->
             try {
+                val parentId = local.vehiculoId
                 val remote = when (local.syncState) {
-                    SyncState.PENDING_CREATE -> local.vehiculoId?.let { problemApi.createRegistroProblema(it, local.toRemoteModel()) }
-                    SyncState.PENDING_UPDATE -> local.serverId?.let { problemApi.updateRegistroProblema(it, local.toRemoteModel()) }
+                    SyncState.PENDING_CREATE -> parentId?.takeIf { it > 0 }?.let { problemApi.createRegistroProblema(it, local.toRemoteModel()) }
+                    SyncState.PENDING_UPDATE -> local.serverId?.takeIf { parentId != null && parentId > 0 }?.let { problemApi.updateRegistroProblema(it, local.toRemoteModel()) }
                     SyncState.PENDING_DELETE -> {
                         local.serverId?.let { problemApi.deleteRegistroProblema(it) }
-                        problemDao.delete(local)
+                        database.withTransaction { problemDao.delete(local) }
                         null
                     }
                     else -> null
                 }
                 remote?.let {
-                    val entity = it.toRoomEntity(local.vehiculoId).copy(
-                        localId = local.localId,
-                        syncState = SyncState.SYNCED
-                    )
-                    problemDao.update(entity)
+                    database.withTransaction {
+                        problemDao.update(
+                            it.toRoomEntity(local.vehiculoId).copy(
+                                localId = local.localId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push problem ${local.localId}", e)
+            }
         }
     }
 
     suspend fun pullProblems() {
-        val lastSync = syncMetadataDao.getByEntityName(SyncConstants.ENTITY_REGISTRO_PROBLEMA)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_REGISTRO_PROBLEMA)?.lastSuccessfulSyncServerTimeMillis ?: 0L
         try {
             val remoteList = problemApi.getUpdatedAfter(lastSync)
-            remoteList.forEach { remote ->
-                val existing = remote.id?.let { problemDao.getByServerId(it) }
-                
-                if (remote.eliminado) {
-                    existing?.let { problemDao.delete(it) }
-                } else {
-                    if (existing == null) {
-                        problemDao.insert(remote.toRoomEntity())
-                    } else if (existing.syncState == SyncState.SYNCED) {
-                        if (remote.fechaActualizacion == null || existing.fechaActualizacion == null || 
-                            remote.fechaActualizacion.isAfter(existing.fechaActualizacion)) {
-                            val entity = remote.toRoomEntity(existing.vehiculoId).copy(localId = existing.localId)
-                            problemDao.update(entity)
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { problemDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { problemDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity(existing?.vehiculoId).copy(
+                            localId = existing?.localId ?: 0,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            problemDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                problemDao.update(next)
+                            }
                         }
                     }
                 }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_REGISTRO_PROBLEMA, System.currentTimeMillis()))
             }
-            syncMetadataDao.upsert(SyncMetadataEntity(SyncConstants.ENTITY_REGISTRO_PROBLEMA, System.currentTimeMillis()))
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull problems", e)
+        }
     }
 
     // --- REGISTRO GENERAL ---
@@ -283,13 +361,16 @@ class SyncManager(
             try {
                 if (local.syncState.isDeleteRetryState()) {
                     local.serverId?.let { registroApi.deleteRegistro(it) }
-                    registroDao.delete(local)
+                    database.withTransaction { registroDao.delete(local) }
                 }
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push registro ${local.localId}", e)
+            }
         }
     }
 
     private fun pullRegistros() {
-        // ... simplified
+        // No-op: this entity is not currently synchronized by the backend flow.
     }
+
 }

@@ -15,6 +15,12 @@ interface UsuarioDao {
     fun observeAll(): Flow<List<UsuarioEntity>>
 
     @Query("SELECT * FROM usuarios WHERE localId = :localId LIMIT 1")
+    fun observeByLocalId(localId: Long): Flow<UsuarioEntity?>
+
+    @Query("SELECT * FROM usuarios WHERE serverId = :serverId LIMIT 1")
+    fun observeByServerId(serverId: Long): Flow<UsuarioEntity?>
+
+    @Query("SELECT * FROM usuarios WHERE localId = :localId LIMIT 1")
     suspend fun getByLocalId(localId: Long): UsuarioEntity?
 
     @Query("SELECT * FROM usuarios WHERE serverId = :serverId LIMIT 1")
