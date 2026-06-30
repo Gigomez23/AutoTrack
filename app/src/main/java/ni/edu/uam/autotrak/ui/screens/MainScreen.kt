@@ -26,10 +26,18 @@ import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
 import ni.edu.uam.autotrak.ui.screens.VehiculoDetalleScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import com.google.gson.Gson
+import android.net.Uri
 
+import ni.edu.uam.autotrak.data.sync.SyncManager
 import ni.edu.uam.autotrak.viewmodel.HomeViewModel
+
+import androidx.compose.ui.platform.LocalContext
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
+import ni.edu.uam.autotrak.data.repository.*
+import ni.edu.uam.autotrak.util.NetworkConnectivityObserver
 
 data class MenuItem(val title: String, val route: String, val icon: ImageVector)
 
@@ -39,6 +47,40 @@ fun MainScreen(
     sessionManager: SessionManager,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
+    val database = AppDatabase.getInstance(context)
+    
+    val connectivityObserver = remember { NetworkConnectivityObserver(context) }
+    val isOnline by connectivityObserver.isOnline.collectAsState(initial = true)
+    val isOffline = !isOnline
+
+    // SyncManager initialization
+    val syncManager = remember {
+        SyncManager(
+            database.syncMetadataDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
+            database.usuarioDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_vehiculo,
+            database.vehiculoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_combustible,
+            database.registroCombustibleDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_problema,
+            database.registroProblemaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro,
+            database.registroDao()
+        )
+    }
+
+    val usuarioRepository = remember { UsuarioRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao()) { syncManager } }
+    val vehiculoRepository = remember { VehiculoRepositoryImpl(database.vehiculoDao()) { syncManager } }
+    val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database.registroCombustibleDao()) { syncManager } }
+    val problemaRepository = remember { RegistroProblemaRepositoryImpl(database.registroProblemaDao()) { syncManager } }
+
+    // App launch sync
+    LaunchedEffect(Unit) {
+        syncManager.syncAll()
+    }
+
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -49,11 +91,11 @@ fun MainScreen(
     val factory = object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return when {
-                modelClass.isAssignableFrom(VehiculoViewModel::class.java) -> VehiculoViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(UserViewModel::class.java) -> UserViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(RegistroCombustibleViewModel::class.java) -> RegistroCombustibleViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(RegistroProblemaViewModel::class.java) -> RegistroProblemaViewModel(sessionManager) as T
-                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager) as T
+                modelClass.isAssignableFrom(VehiculoViewModel::class.java) -> VehiculoViewModel(sessionManager, vehiculoRepository, fuelRepository) as T
+                modelClass.isAssignableFrom(UserViewModel::class.java) -> UserViewModel(sessionManager, usuarioRepository) as T
+                modelClass.isAssignableFrom(RegistroCombustibleViewModel::class.java) -> RegistroCombustibleViewModel(sessionManager, fuelRepository, vehiculoRepository) as T
+                modelClass.isAssignableFrom(RegistroProblemaViewModel::class.java) -> RegistroProblemaViewModel(sessionManager, problemaRepository, vehiculoRepository) as T
+                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository) as T
                 else -> throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
@@ -136,6 +178,7 @@ fun MainScreen(
                 composable(Screen.Home.route) { 
                     HomeScreen(
                         viewModel = homeViewModel,
+                        isOffline = isOffline,
                         onNavigateToVehicles = { navController.navigate(Screen.Vehicles.route) },
                         onNavigateToFuel = { navController.navigate(Screen.FuelLogs.route) },
                         onNavigateToIssues = { navController.navigate(Screen.Issues.route) },
@@ -146,6 +189,7 @@ fun MainScreen(
                 composable(Screen.Vehicles.route) {
                     VehiculoScreen(
                         viewModel = vehiculoViewModel,
+                        isOffline = isOffline,
                         onVehicleClick = { id -> 
                             navController.navigate(Screen.VehicleDetail.createRoute(id))
                         },
@@ -163,6 +207,7 @@ fun MainScreen(
                     VehiculoDetalleScreen(
                         viewModel = vehiculoViewModel,
                         vehiculoId = id,
+                        isOffline = isOffline,
                         onEdit = { vehicleId ->
                             navController.navigate("vehicle_edit/$vehicleId")
                         },
@@ -194,6 +239,7 @@ fun MainScreen(
                 composable(Screen.FuelLogs.route) {
                     RegistroCombustibleScreen(
                         viewModel = fuelViewModel,
+                        isOffline = isOffline,
                         onAddRegistro = { id -> navController.navigate("fuel_form/$id") }
                     )
                 }
@@ -205,6 +251,7 @@ fun MainScreen(
                     val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
                     RegistroCombustibleScreen(
                         viewModel = fuelViewModel,
+                        isOffline = isOffline,
                         initialVehiculoId = vehiculoId,
                         onAddRegistro = { id -> navController.navigate("fuel_form/$id") }
                     )
@@ -226,10 +273,12 @@ fun MainScreen(
                 composable(Screen.Issues.route) {
                     RegistroProblemaScreen(
                         viewModel = issuesViewModel,
+                        isOffline = isOffline,
                         onAddRegistro = { id -> navController.navigate("issue_form/$id") },
                         onEditRegistro = { vehicleId, issue -> 
-                            val issueJson = Gson().toJson(issue)
-                            navController.navigate("issue_edit/$vehicleId/$issueJson")
+                            val issueJson = RetrofitClient.gson.toJson(issue)
+                            val encodedJson = Uri.encode(issueJson)
+                            navController.navigate("issue_edit/$vehicleId/$encodedJson")
                         }
                     )
                 }
@@ -241,11 +290,13 @@ fun MainScreen(
                     val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
                     RegistroProblemaScreen(
                         viewModel = issuesViewModel,
+                        isOffline = isOffline,
                         initialVehiculoId = vehiculoId,
                         onAddRegistro = { id -> navController.navigate("issue_form/$id") },
                         onEditRegistro = { vehicleId, issue -> 
-                            val issueJson = Gson().toJson(issue)
-                            navController.navigate("issue_edit/$vehicleId/$issueJson")
+                            val issueJson = RetrofitClient.gson.toJson(issue)
+                            val encodedJson = Uri.encode(issueJson)
+                            navController.navigate("issue_edit/$vehicleId/$encodedJson")
                         }
                     )
                 }
@@ -272,7 +323,7 @@ fun MainScreen(
                 ) { backStackEntry ->
                     val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
                     val issueJson = backStackEntry.arguments?.getString("issueJson") ?: ""
-                    val issue = Gson().fromJson(issueJson, RegistroProblema::class.java)
+                    val issue = RetrofitClient.gson.fromJson(issueJson, RegistroProblema::class.java)
                     IssueFormScreen(
                         viewModel = issuesViewModel,
                         vehiculoId = vehiculoId,

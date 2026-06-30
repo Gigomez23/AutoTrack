@@ -2,37 +2,46 @@ package ni.edu.uam.autotrak.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ni.edu.uam.autotrak.data.remote.model.Usuario
-import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.SessionManager
+import ni.edu.uam.autotrak.data.repository.UsuarioRepository
 
-class UserViewModel(private val sessionManager: SessionManager) : ViewModel() {
-    private val _uiState = MutableStateFlow<UiState<List<Usuario>>>(UiState.Loading)
-    val uiState = _uiState.asStateFlow()
+class UserViewModel(
+    private val sessionManager: SessionManager,
+    private val usuarioRepository: UsuarioRepository
+) : ViewModel() {
+
+    private val userId = sessionManager.getUserId()
+
+    private val _error = MutableStateFlow<String?>(null)
+
+    val uiState: StateFlow<UiState<List<Usuario>>> = if (userId != -1L) {
+        combine(usuarioRepository.observeUsuario(userId), _error) { user, error ->
+            when {
+                user != null -> UiState.Success(listOf(user))
+                error != null -> UiState.Error(error)
+                else -> UiState.Loading
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+    } else {
+        MutableStateFlow(UiState.Error("No hay usuario seleccionado"))
+    }
 
     init {
-        val userId = sessionManager.getUserId()
         if (userId != -1L) {
             buscarUsuario(userId)
-        } else {
-            _uiState.value = UiState.Error("No hay usuario seleccionado")
         }
     }
 
     fun buscarUsuario(id: Long) {
         viewModelScope.launch {
             try {
-                _uiState.value = UiState.Loading
-                val usuario = RetrofitClient.api_usuario.getUsuario(id)
-                //Se mantiene un vehiuclo en el estado de éxito para simplificar la pantalla de detalles
-                _uiState.value = UiState.Success(listOf(usuario))
+                usuarioRepository.refreshUsuario(id)
+                _error.value = null
             } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al buscar el vehiculo: ${e.message}"
-                )
+                _error.value = "Error al cargar perfil: ${e.message}"
             }
         }
     }
@@ -40,42 +49,24 @@ class UserViewModel(private val sessionManager: SessionManager) : ViewModel() {
     fun crearUsuario(usuario: Usuario) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_usuario.createUsuario(usuario)
-                val userId = sessionManager.getUserId()
-                if (userId != -1L) buscarUsuario(userId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al crear el usuario: ${e.message}"
-                )
-            }
+                usuarioRepository.createUsuario(usuario)
+            } catch (_: Exception) {}
         }
     }
 
     fun actualizarUsuario(id: Long, usuario: Usuario) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_usuario.updateUsuario(id, usuario)
-                val userId = sessionManager.getUserId()
-                if (userId != -1L) buscarUsuario(userId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al actualizar el usuario: ${e.message}"
-                )
-            }
+                usuarioRepository.updateUsuario(id, usuario)
+            } catch (_: Exception) {}
         }
     }
 
     fun eliminarUsuario(id: Long) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_usuario.deleteUsuario(id)
-                val userId = sessionManager.getUserId()
-                if (userId != -1L) buscarUsuario(userId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al eliminar el usuario: ${e.message}"
-                )
-            }
+                usuarioRepository.deleteUsuario(id)
+            } catch (_: Exception) {}
         }
     }
 }

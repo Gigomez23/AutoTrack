@@ -2,13 +2,14 @@ package ni.edu.uam.autotrak.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
-import ni.edu.uam.autotrak.data.remote.RetrofitClient
 import ni.edu.uam.autotrak.data.remote.SessionManager
+import ni.edu.uam.autotrak.data.repository.RegistroCombustibleRepository
+import ni.edu.uam.autotrak.data.repository.VehiculoRepository
 import java.time.format.DateTimeFormatter
 import java.util.*
 
@@ -21,12 +22,23 @@ data class EfficiencyPoint(
     val label: String
 )
 
-class RegistroCombustibleViewModel(private val sessionManager: SessionManager) : ViewModel() {
-    private val _uiState = MutableStateFlow<UiState<List<RegistroCombustible>>>(UiState.Success(emptyList()))
-    val uiState = _uiState.asStateFlow()
+@OptIn(ExperimentalCoroutinesApi::class)
+class RegistroCombustibleViewModel(
+    private val sessionManager: SessionManager,
+    private val fuelRepository: RegistroCombustibleRepository,
+    private val vehiculoRepository: VehiculoRepository
+) : ViewModel() {
 
-    private val _vehiclesState = MutableStateFlow<UiState<List<Vehiculo>>>(UiState.Loading)
-    val vehiclesState = _vehiclesState.asStateFlow()
+    private val userId = sessionManager.getUserId()
+
+    val vehiclesState: StateFlow<UiState<List<Vehiculo>>> = if (userId != -1L) {
+        vehiculoRepository.observeVehiculos(userId)
+            .map { list -> UiState.Success(list) as UiState<List<Vehiculo>> }
+            .onStart { emit(UiState.Loading) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+    } else {
+        MutableStateFlow(UiState.Error("No hay usuario seleccionado"))
+    }
 
     private val _selectedVehiculoId = MutableStateFlow<Long?>(null)
     val selectedVehiculoId = _selectedVehiculoId.asStateFlow()
@@ -34,26 +46,37 @@ class RegistroCombustibleViewModel(private val sessionManager: SessionManager) :
     private val _selectedChartType = MutableStateFlow(FuelChartType.LINE)
     val selectedChartType = _selectedChartType.asStateFlow()
 
-    private val _lineEfficiencyData = MutableStateFlow<List<EfficiencyPoint>>(emptyList())
-    val lineEfficiencyData = _lineEfficiencyData.asStateFlow()
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
 
-    private val _monthlyEfficiencyData = MutableStateFlow<List<EfficiencyPoint>>(emptyList())
-    val monthlyEfficiencyData = _monthlyEfficiencyData.asStateFlow()
+    // Observable data from Room, reacting to selected vehicle
+    val uiState: StateFlow<UiState<List<RegistroCombustible>>> = _selectedVehiculoId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(UiState.Success(emptyList()))
+            else fuelRepository.observeByVehiculoId(id).map { UiState.Success(it) }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UiState.Loading)
+
+    // Derived statistics
+    val lineEfficiencyData = uiState.map { state ->
+        if (state is UiState.Success) calculateLineStats(state.data) else emptyList()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val monthlyEfficiencyData = uiState.map { state ->
+        if (state is UiState.Success) calculateMonthlyStats(state.data) else emptyList()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     fun cargarVehiculos() {
-        val userId = sessionManager.getUserId()
-        if (userId == -1L) {
-            _vehiclesState.value = UiState.Error("No hay usuario seleccionado")
-            return
-        }
+        if (userId == -1L) return
         viewModelScope.launch {
             try {
-                _vehiclesState.value = UiState.Loading
-                val vehicles = RetrofitClient.api_vehiculo.getVehiculoByUsuarioId(userId)
-                _vehiclesState.value = UiState.Success(vehicles)
-            } catch (e: Exception) {
-                _vehiclesState.value = UiState.Error("Error al cargar vehículos: ${e.message}")
-            }
+                vehiculoRepository.refreshVehiculos(userId)
+                
+                // If a vehicle is selected, refresh its records too
+                _selectedVehiculoId.value?.let { vid ->
+                    fuelRepository.refreshByVehiculoId(vid)
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -64,13 +87,12 @@ class RegistroCombustibleViewModel(private val sessionManager: SessionManager) :
 
     fun cargarRegistrosCombustible(vehiculoId: Long) {
         viewModelScope.launch {
+            _isRefreshing.value = true
             try {
-                _uiState.value = UiState.Loading
-                val registros = RetrofitClient.api_registro_combustible.getRegistroCombustibleByVehiculoId(vehiculoId)
-                _uiState.value = UiState.Success(registros)
-                calcularEstadisticas(registros)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Error al cargar los registro del consumo de combustible: ${e.message}")
+                fuelRepository.refreshByVehiculoId(vehiculoId)
+            } catch (_: Exception) {
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
@@ -78,13 +100,24 @@ class RegistroCombustibleViewModel(private val sessionManager: SessionManager) :
     fun crearRegistroCombustible(vehiculoId: Long, registroCombustible: RegistroCombustible) {
         viewModelScope.launch {
             try {
-                RetrofitClient.api_registro_combustible.createRegistroCombustible(vehiculoId, registroCombustible)
-                cargarRegistrosCombustible(vehiculoId)
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error(
-                    "Error al crear el registro del consumo de combustible: ${e.message}"
-                )
-            }
+                fuelRepository.create(vehiculoId, registroCombustible)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun actualizarRegistroCombustible(id: Long, registroCombustible: RegistroCombustible) {
+        viewModelScope.launch {
+            try {
+                fuelRepository.update(id, registroCombustible)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun eliminarRegistroCombustible(id: Long) {
+        viewModelScope.launch {
+            try {
+                fuelRepository.delete(id)
+            } catch (_: Exception) {}
         }
     }
 
@@ -92,14 +125,26 @@ class RegistroCombustibleViewModel(private val sessionManager: SessionManager) :
         _selectedChartType.value = type
     }
 
-    private fun calcularEstadisticas(registros: List<RegistroCombustible>) {
+    private fun calculateLineStats(registros: List<RegistroCombustible>): List<EfficiencyPoint> {
         val sorted = registros.sortedBy { it.fechaRegistro }
-        
-        // Line chart data (individual refuels)
-        val linePoints = mutableListOf<EfficiencyPoint>()
+        val points = mutableListOf<EfficiencyPoint>()
         val dateFormatter = DateTimeFormatter.ofPattern("dd/MM")
-        
-        // Use a map to group efficiencies by month for the bar chart
+        for (i in 1 until sorted.size) {
+            val prev = sorted[i-1]
+            val curr = sorted[i]
+            val distance = curr.odometro - prev.odometro
+            if (distance > 0 && prev.cantidadCombustible > 0) {
+                points.add(EfficiencyPoint(
+                    value = distance.toFloat() / prev.cantidadCombustible.toFloat(),
+                    label = curr.fechaRegistro?.format(dateFormatter) ?: ""
+                ))
+            }
+        }
+        return points
+    }
+
+    private fun calculateMonthlyStats(registros: List<RegistroCombustible>): List<EfficiencyPoint> {
+        val sorted = registros.sortedBy { it.fechaRegistro }
         val monthEfficiencyMap = mutableMapOf<String, MutableList<Float>>()
         val monthLabelFormatter = DateTimeFormatter.ofPattern("MMM yy", Locale.forLanguageTag("es-NI"))
         val orderedMonths = mutableListOf<String>()
@@ -108,33 +153,15 @@ class RegistroCombustibleViewModel(private val sessionManager: SessionManager) :
             val prev = sorted[i-1]
             val curr = sorted[i]
             val distance = curr.odometro - prev.odometro
-            
             if (distance > 0 && prev.cantidadCombustible > 0) {
                 val efficiency = distance.toFloat() / prev.cantidadCombustible.toFloat()
-                
-                // Add to line chart
-                linePoints.add(EfficiencyPoint(
-                    value = efficiency,
-                    label = curr.fechaRegistro?.format(dateFormatter) ?: ""
-                ))
-                
-                // Add to monthly grouping
                 val monthLabel = curr.fechaRegistro?.format(monthLabelFormatter) ?: "N/A"
-                if (!monthEfficiencyMap.containsKey(monthLabel)) {
-                    orderedMonths.add(monthLabel)
-                }
+                if (!monthEfficiencyMap.containsKey(monthLabel)) orderedMonths.add(monthLabel)
                 monthEfficiencyMap.getOrPut(monthLabel) { mutableListOf() }.add(efficiency)
             }
         }
-        
-        _lineEfficiencyData.value = linePoints
-
-        // Calculate monthly averages in chronological order
-        _monthlyEfficiencyData.value = orderedMonths.map { label ->
-            EfficiencyPoint(
-                value = monthEfficiencyMap[label]?.average()?.toFloat() ?: 0f,
-                label = label
-            )
+        return orderedMonths.map { label ->
+            EfficiencyPoint(value = monthEfficiencyMap[label]?.average()?.toFloat() ?: 0f, label = label)
         }
     }
 }

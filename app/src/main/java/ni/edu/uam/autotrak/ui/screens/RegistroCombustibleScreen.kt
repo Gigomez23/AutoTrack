@@ -6,7 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -33,10 +35,15 @@ import ni.edu.uam.autotrak.viewmodel.UiState
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+import ni.edu.uam.autotrak.ui.components.OfflineBanner
+import ni.edu.uam.autotrak.ui.components.SyncStatusBadge
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegistroCombustibleScreen(
     viewModel: RegistroCombustibleViewModel,
+    isOffline: Boolean,
     initialVehiculoId: Long? = null,
     onAddRegistro: (Long) -> Unit
 ) {
@@ -46,6 +53,7 @@ fun RegistroCombustibleScreen(
     val selectedChartType by viewModel.selectedChartType.collectAsState()
     val lineData by viewModel.lineEfficiencyData.collectAsState()
     val monthlyData by viewModel.monthlyEfficiencyData.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.cargarVehiculos()
@@ -56,13 +64,16 @@ fun RegistroCombustibleScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Control de Combustible", style = MaterialTheme.typography.titleLarge) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            Column {
+                TopAppBar(
+                    title = { Text("Control de Combustible", style = MaterialTheme.typography.titleLarge) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 )
-            )
+                OfflineBanner(isOffline = isOffline)
+            }
         },
         floatingActionButton = {
             selectedVehiculoId?.let { id ->
@@ -87,9 +98,13 @@ fun RegistroCombustibleScreen(
 
             HorizontalDivider()
 
-            Box(modifier = Modifier.fillMaxSize()) {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { selectedVehiculoId?.let { viewModel.cargarRegistrosCombustible(it) } },
+                modifier = Modifier.fillMaxSize()
+            ) {
                 when (val state = uiState) {
-                    is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    is UiState.Loading -> if (!isRefreshing) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is UiState.Error -> ErrorState(message = state.message)
                     is UiState.Success -> {
                         if (selectedVehiculoId == null) {
@@ -365,14 +380,18 @@ fun FuelLogItem(registro: RegistroCombustible) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = fechaFormatted,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = fechaFormatted,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SyncStatusBadge(syncState = registro.syncState)
                 }
                 Surface(
                     color = MaterialTheme.colorScheme.secondaryContainer,
@@ -481,7 +500,8 @@ fun FuelLogFormScreen(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedTextField(

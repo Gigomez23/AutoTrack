@@ -12,6 +12,7 @@ import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
 import com.google.gson.GsonBuilder
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -40,8 +41,9 @@ object RetrofitClient {
             .build()
     }
 
-    private val gson = GsonBuilder()
+    val gson = GsonBuilder()
         .registerTypeAdapter(LocalDate::class.java, LocalDateAdapter())
+        .registerTypeAdapter(LocalDateTime::class.java, LocalDateTimeAdapter())
         .registerTypeAdapter(BigDecimal::class.java, BigDecimalAdapter())
         .create()
 
