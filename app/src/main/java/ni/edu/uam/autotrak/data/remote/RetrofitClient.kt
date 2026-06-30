@@ -13,6 +13,7 @@ import com.google.gson.GsonBuilder
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.io.IOException
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -24,9 +25,11 @@ object RetrofitClient {
     private const val BASE_URL = "http://127.0.0.1:8080/"
 
     private var sessionManager: SessionManager? = null
+    private var serverStatusMonitor: ServerStatusMonitor? = null
 
-    fun init(sessionManager: SessionManager) {
+    fun init(sessionManager: SessionManager, serverStatusMonitor: ServerStatusMonitor) {
         this.sessionManager = sessionManager
+        this.serverStatusMonitor = serverStatusMonitor
     }
 
     private val okHttpClient: OkHttpClient by lazy {
@@ -36,7 +39,19 @@ object RetrofitClient {
                 sessionManager?.getAuthHeader()?.let {
                     requestBuilder.addHeader("Authorization", it)
                 }
-                chain.proceed(requestBuilder.build())
+                val request = requestBuilder.build()
+                try {
+                    val response = chain.proceed(request)
+                    if (response.isSuccessful) {
+                        serverStatusMonitor?.reportSuccess()
+                    } else if (response.code >= 500) {
+                        serverStatusMonitor?.reportError(IOException("Server error: ${response.code}"))
+                    }
+                    response
+                } catch (e: Exception) {
+                    serverStatusMonitor?.reportError(e)
+                    throw e
+                }
             }
             .build()
     }

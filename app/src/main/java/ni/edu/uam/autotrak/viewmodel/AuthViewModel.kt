@@ -22,6 +22,9 @@ class AuthViewModel(
     private val _loginState = MutableStateFlow<UiState<Boolean>>(UiState.Success(false))
     val loginState = _loginState.asStateFlow()
 
+    private val _signupState = MutableStateFlow<UiState<Boolean>>(UiState.Success(false))
+    val signupState = _signupState.asStateFlow()
+
     fun login(email: String, password: String) {
         viewModelScope.launch {
             _loginState.value = UiState.Loading
@@ -32,6 +35,18 @@ class AuthViewModel(
             } catch (e: Exception) {
                 sessionManager.clear()
                 _loginState.value = UiState.Error("Login failed: ${e.message}")
+            }
+        }
+    }
+
+    fun signup(usuario: Usuario) {
+        viewModelScope.launch {
+            _signupState.value = UiState.Loading
+            try {
+                usuarioRepository.createUsuario(usuario)
+                _signupState.value = UiState.Success(true)
+            } catch (e: Exception) {
+                _signupState.value = UiState.Error("Signup failed: ${e.message}")
             }
         }
     }

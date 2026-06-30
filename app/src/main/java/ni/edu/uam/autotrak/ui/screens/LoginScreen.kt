@@ -7,25 +7,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
+import ni.edu.uam.autotrak.ui.components.ServerStatusIndicator
 import ni.edu.uam.autotrak.viewmodel.AuthViewModel
 import ni.edu.uam.autotrak.viewmodel.UiState
 
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
-    onLoginSuccess: () -> Unit
+    serverStatusMonitor: ServerStatusMonitor,
+    onLoginSuccess: () -> Unit,
+    onSignupClick: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val loginState by viewModel.loginState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        ServerStatusIndicator(
+            monitor = serverStatusMonitor,
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
         Text(text = "AutoTrak Login", style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -66,10 +76,16 @@ fun LoginScreen(
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+        TextButton(onClick = onSignupClick) {
+            Text("Don't have an account? Sign up")
+        }
+
         LaunchedEffect(loginState) {
             if (loginState is UiState.Success && (loginState as UiState.Success<Boolean>).data) {
                 onLoginSuccess()
             }
         }
     }
+}
 }

@@ -11,10 +11,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ni.edu.uam.autotrak.data.remote.RetrofitClient
+import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
 import ni.edu.uam.autotrak.data.remote.SessionManager
 import ni.edu.uam.autotrak.ui.Screen
 import ni.edu.uam.autotrak.ui.screens.LoginScreen
 import ni.edu.uam.autotrak.ui.screens.MainScreen
+import ni.edu.uam.autotrak.ui.screens.SignupScreen
 import ni.edu.uam.autotrak.ui.theme.AutoTrakTheme
 import ni.edu.uam.autotrak.viewmodel.AuthViewModel
 
@@ -26,19 +28,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         val sessionManager = SessionManager(this)
-        RetrofitClient.init(sessionManager)
+        val serverStatusMonitor = ServerStatusMonitor(applicationContext)
+        RetrofitClient.init(sessionManager, serverStatusMonitor)
 
         enableEdgeToEdge()
         setContent {
             AutoTrakTheme {
-                AppNavigation(sessionManager, AppDatabase.getInstance(this@MainActivity))
+                AppNavigation(sessionManager, database = AppDatabase.getInstance(this@MainActivity), serverStatusMonitor)
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation(sessionManager: SessionManager, database: AppDatabase) {
+fun AppNavigation(sessionManager: SessionManager, database: AppDatabase, serverStatusMonitor: ServerStatusMonitor) {
     val syncManager = remember {
         ni.edu.uam.autotrak.data.sync.SyncManager(
             database,
@@ -78,20 +81,45 @@ fun AppNavigation(sessionManager: SessionManager, database: AppDatabase) {
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Screen.Login.route) {
-            LoginScreen(authViewModel) {
-                navController.navigate(Screen.Home.route) {
-                    popUpTo(Screen.Login.route) { inclusive = true }
+            LoginScreen(
+                viewModel = authViewModel,
+                serverStatusMonitor = serverStatusMonitor,
+                onLoginSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                },
+                onSignupClick = {
+                    navController.navigate(Screen.Signup.route)
                 }
-            }
+            )
+        }
+        composable(Screen.Signup.route) {
+            SignupScreen(
+                viewModel = authViewModel,
+                serverStatusMonitor = serverStatusMonitor,
+                onSignupSuccess = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.Signup.route) { inclusive = true }
+                    }
+                },
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
         }
         composable(Screen.Home.route) {
-            MainScreen(sessionManager = sessionManager, onLogout = {
-                authViewModel.logout {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0)
+            MainScreen(
+                sessionManager = sessionManager,
+                serverStatusMonitor = serverStatusMonitor,
+                onLogout = {
+                    authViewModel.logout {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0)
+                        }
                     }
                 }
-            })
+            )
         }
     }
 }
