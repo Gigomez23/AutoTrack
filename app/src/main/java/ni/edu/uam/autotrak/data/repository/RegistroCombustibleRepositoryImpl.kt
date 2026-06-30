@@ -85,14 +85,7 @@ class RegistroCombustibleRepositoryImpl(
             return dao.getByLocalId(localId)?.toRemoteModel() ?: registro
         }
 
-        return try {
-            val remote = RetrofitClient.api_registro_combustible.updateRegistroCombustible(id, registro)
-            persistRemote(remote.toRoomEntity(existing.vehiculoId), localId)
-            dao.getByLocalId(localId)?.toRemoteModel() ?: remote
-        } catch (_: Exception) {
-            syncManagerProvider().syncEntity(SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)
-            dao.getByLocalId(localId)?.toRemoteModel() ?: registro
-        }
+        return dao.getByLocalId(localId)?.toRemoteModel() ?: registro
     }
 
     override suspend fun delete(id: Long) {
@@ -112,7 +105,7 @@ class RegistroCombustibleRepositoryImpl(
             return
         }
         try {
-            RetrofitClient.api_registro_combustible.deleteRegistroCombustible(id)
+            RetrofitClient.api_registro.deleteRegistro(id)
             database.withTransaction {
                 existing.let { dao.delete(it) }
             }

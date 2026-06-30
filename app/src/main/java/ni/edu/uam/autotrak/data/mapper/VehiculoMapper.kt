@@ -58,3 +58,7 @@ fun VehiculoEntity.toRemoteModel(): Vehiculo {
         fechaActualizacion = fechaActualizacion
     )
 }
+
+fun Vehiculo.toCreateRequestModel(): Vehiculo {
+    return copy(id = null)
+}

@@ -45,7 +45,8 @@ fun RegistroCombustibleScreen(
     viewModel: RegistroCombustibleViewModel,
     isOffline: Boolean,
     initialVehiculoId: Long? = null,
-    onAddRegistro: (Long) -> Unit
+    onAddRegistro: (Long) -> Unit,
+    onEditRegistro: (Long, RegistroCombustible) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val vehiclesState by viewModel.vehiclesState.collectAsState()
@@ -115,7 +116,9 @@ fun RegistroCombustibleScreen(
                                 selectedChartType = selectedChartType,
                                 lineData = lineData,
                                 monthlyData = monthlyData,
-                                onChartTypeSelected = { viewModel.setChartType(it) }
+                                onChartTypeSelected = { viewModel.setChartType(it) },
+                                onEdit = { onEditRegistro(selectedVehiculoId!!, it) },
+                                onDelete = { it.id?.let { id -> viewModel.eliminarRegistroCombustible(id) } }
                             )
                         }
                     }
@@ -132,7 +135,9 @@ fun FuelContent(
     selectedChartType: FuelChartType,
     lineData: List<EfficiencyPoint>,
     monthlyData: List<EfficiencyPoint>,
-    onChartTypeSelected: (FuelChartType) -> Unit
+    onChartTypeSelected: (FuelChartType) -> Unit,
+    onEdit: (RegistroCombustible) -> Unit,
+    onDelete: (RegistroCombustible) -> Unit
 ) {
     val sortedRegistros = registros.sortedBy { it.fechaRegistro }
     
@@ -188,7 +193,11 @@ fun FuelContent(
             }
         } else {
             items(sortedRegistros.reversed()) { registro ->
-                FuelLogItem(registro = registro)
+                FuelLogItem(
+                    registro = registro,
+                    onEdit = { onEdit(registro) },
+                    onDelete = { onDelete(registro) }
+                )
             }
         }
     }
@@ -366,7 +375,11 @@ fun BarChart(points: List<EfficiencyPoint>) {
 }
 
 @Composable
-fun FuelLogItem(registro: RegistroCombustible) {
+fun FuelLogItem(
+    registro: RegistroCombustible,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     val dateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy")
     val fechaFormatted = registro.fechaRegistro?.format(dateFormatter) ?: "Fecha desconocida"
 
@@ -424,7 +437,7 @@ fun FuelLogItem(registro: RegistroCombustible) {
                     icon = Icons.Default.Paid,
                     label = "Precio/L",
                     value = if (registro.cantidadCombustible > 0) 
-                        "$${String.format("%.2f", registro.cantidadPagado?.toDouble()?.div(registro.cantidadCombustible))}" 
+                        "$${String.format(java.util.Locale.getDefault(), "%.2f", registro.cantidadPagado?.toDouble()?.div(registro.cantidadCombustible))}"
                         else "N/A"
                 )
             }
@@ -445,6 +458,23 @@ fun FuelLogItem(registro: RegistroCombustible) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(thickness = 0.5.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Editar")
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -475,19 +505,20 @@ fun ErrorState(message: String) {
 fun FuelLogFormScreen(
     viewModel: RegistroCombustibleViewModel,
     vehiculoId: Long,
+    registroToEdit: RegistroCombustible? = null,
     onSuccess: () -> Unit,
     onBack: () -> Unit
 ) {
-    var cantidadCombustible by remember { mutableStateOf("") }
-    var cantidadPagada by remember { mutableStateOf("") }
-    var odometro by remember { mutableStateOf("") }
-    var nota by remember { mutableStateOf("") }
-    var fecha by remember { mutableStateOf(LocalDate.now().toString()) }
+    var cantidadCombustible by remember { mutableStateOf(registroToEdit?.cantidadCombustible?.toString() ?: "") }
+    var cantidadPagada by remember { mutableStateOf(registroToEdit?.cantidadPagado?.toString() ?: "") }
+    var odometro by remember { mutableStateOf(registroToEdit?.odometro?.toString() ?: "") }
+    var nota by remember { mutableStateOf(registroToEdit?.nota ?: "") }
+    var fecha by remember { mutableStateOf(registroToEdit?.fechaRegistro?.toString() ?: LocalDate.now().toString()) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nuevo Registro") },
+                title = { Text(if (registroToEdit == null) "Nuevo Registro" else "Editar Registro") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
@@ -554,20 +585,26 @@ fun FuelLogFormScreen(
                     }
 
                     val registro = RegistroCombustible(
+                        id = registroToEdit?.id,
                         fechaRegistro = try { LocalDate.parse(fecha) } catch(e: Exception) { LocalDate.now() },
                         cantidadCombustible = cantidad,
                         cantidadPagado = pagado,
                         odometro = odo,
                         nota = nota
                     )
-                    viewModel.crearRegistroCombustible(vehiculoId, registro)
+                    
+                    if (registroToEdit == null) {
+                        viewModel.crearRegistroCombustible(vehiculoId, registro)
+                    } else {
+                        viewModel.actualizarRegistroCombustible(registroToEdit.id ?: 0L, registro)
+                    }
                     onSuccess()
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Text("Guardar Registro", style = MaterialTheme.typography.titleMedium)
+                Text(if (registroToEdit == null) "Guardar Registro" else "Actualizar Registro", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
