@@ -10,18 +10,18 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface DocumentoApi {
-    @GET("api/documentos")
+    @GET("api/v1/documentos")
     suspend fun getDocumentos(): List<DocumentoGeneral>
 
-    @GET("api/documentos/{id}")
+    @GET("api/v1/documentos/{id}")
     suspend fun getDocumentoById(@Path("id") id: Long): DocumentoGeneral
 
-    @POST("api/documentos")
-    suspend fun createDocumento(@Body documento: DocumentoGeneral): DocumentoGeneral
+    @GET("api/v1/documentos/vencidos")
+    suspend fun getDocumentosVencidos(): List<DocumentoGeneral>
 
-    @PUT("api/documentos/{id}")
+    @PUT("api/v1/documentos/{id}")
     suspend fun updateDocumento(@Path("id") id: Long, @Body documento: DocumentoGeneral): DocumentoGeneral
 
-    @DELETE("api/documentos/{id}")
+    @DELETE("api/v1/documentos/{id}")
     suspend fun deleteDocumento(@Path("id") id: Long)
 }
