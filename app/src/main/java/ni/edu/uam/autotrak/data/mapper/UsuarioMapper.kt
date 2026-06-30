@@ -11,10 +11,11 @@ fun Usuario.toRoomEntity(): UsuarioEntity {
         nombres = nombres.orEmpty(),
         apellidos = apellidos.orEmpty(),
         email = email.orEmpty(),
-        numeroTel = nueroTel.orEmpty(),
+        numeroTel = numeroTel.orEmpty(),
         username = username.orEmpty(),
         password = password.orEmpty(),
         pais = pais.orEmpty(),
+        syncState = syncState,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
     )
@@ -26,7 +27,7 @@ fun UsuarioSyncDto.toRoomEntity(): UsuarioEntity {
         nombres = nombres.orEmpty(),
         apellidos = apellidos.orEmpty(),
         email = email.orEmpty(),
-        numeroTel = nueroTel.orEmpty(),
+        numeroTel = numeroTel.orEmpty(),
         username = username.orEmpty(),
         pais = pais.orEmpty(),
         fechaCreacion = fechaCreacion,
@@ -41,10 +42,11 @@ fun UsuarioEntity.toRemoteModel(): Usuario {
         nombres = nombres,
         apellidos = apellidos,
         email = email,
-        nueroTel = numeroTel,
+        numeroTel = numeroTel,
         username = username,
         password = password,
         pais = pais,
+        syncState = syncState,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
     )

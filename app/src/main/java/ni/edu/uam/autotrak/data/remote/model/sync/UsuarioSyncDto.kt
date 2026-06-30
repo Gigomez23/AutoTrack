@@ -7,7 +7,7 @@ data class UsuarioSyncDto(
     val nombres: String? = "",
     val apellidos: String? = "",
     val email: String? = "",
-    val nueroTel: String? = "",
+    val numeroTel: String? = "",
     val username: String? = "",
     val pais: String? = "",
     val fechaCreacion: LocalDateTime? = null,
