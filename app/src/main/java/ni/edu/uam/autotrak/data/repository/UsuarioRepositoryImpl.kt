@@ -1,18 +1,22 @@
 package ni.edu.uam.autotrak.data.repository
 
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import ni.edu.uam.autotrak.data.local.dao.UsuarioDao
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
 import ni.edu.uam.autotrak.data.mapper.toRemoteModel
 import ni.edu.uam.autotrak.data.mapper.toRoomEntity
 import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
 import ni.edu.uam.autotrak.data.remote.model.LoginRequest
 import ni.edu.uam.autotrak.data.remote.model.LoginResponse
 import ni.edu.uam.autotrak.data.remote.model.Usuario
+import ni.edu.uam.autotrak.data.sync.SyncConstants
 import ni.edu.uam.autotrak.data.sync.SyncManager
 import ni.edu.uam.autotrak.data.sync.SyncState
 
 class UsuarioRepositoryImpl(
+    private val database: AppDatabase,
     private val usuarioApi: UsuarioApi,
     private val usuarioDao: UsuarioDao,
     private val syncManagerProvider: () -> SyncManager
@@ -23,18 +27,17 @@ class UsuarioRepositoryImpl(
     }
 
     override fun observeUsuario(id: Long): Flow<Usuario?> {
-        return usuarioDao.observeAll().map { users ->
-            users.find { it.serverId == id }?.toRemoteModel()
-        }
+        return usuarioDao.observeByServerId(id).map { it?.toRemoteModel() }
     }
 
     override suspend fun refreshUsuario(id: Long) {
         try {
             syncManagerProvider().pushUsuario()
             val remote = usuarioApi.getUsuario(id)
-            upsertFromRemote(remote)
+            database.withTransaction {
+                upsertFromRemote(remote)
+            }
         } catch (e: Exception) {
-            // If targeted pull fails, try a general sync as fallback or rethrow
             syncManagerProvider().pullUsuario()
             throw e
         }
@@ -49,7 +52,7 @@ class UsuarioRepositoryImpl(
             persistRemote(remote, localId)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
-            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO)
+            syncManagerProvider().syncEntity(SyncConstants.ENTITY_USUARIO)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: usuario
         }
     }
@@ -68,7 +71,11 @@ class UsuarioRepositoryImpl(
                 usuario.toRoomEntity().copy(
                     localId = localId,
                     serverId = id,
-                    syncState = if (existing.syncState == SyncState.PENDING_CREATE) SyncState.PENDING_CREATE else SyncState.PENDING_UPDATE
+                    syncState = if (existing.syncState == SyncState.PENDING_CREATE) {
+                        SyncState.PENDING_CREATE
+                    } else {
+                        SyncState.PENDING_UPDATE
+                    }
                 )
             )
         }
@@ -78,21 +85,25 @@ class UsuarioRepositoryImpl(
             persistRemote(remote, localId)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: remote
         } catch (_: Exception) {
-            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO)
+            syncManagerProvider().syncEntity(SyncConstants.ENTITY_USUARIO)
             usuarioDao.getByLocalId(localId)?.toRemoteModel() ?: usuario
         }
     }
 
     override suspend fun deleteUsuario(id: Long) {
         val existing = usuarioDao.getByServerId(id)
-        if (existing != null) {
-            usuarioDao.update(existing.copy(syncState = SyncState.PENDING_DELETE))
+        if (existing == null) {
+            return
         }
+
+        usuarioDao.update(existing.copy(syncState = SyncState.PENDING_DELETE))
         try {
             usuarioApi.deleteUsuario(id)
-            existing?.let { usuarioDao.delete(it) }
+            database.withTransaction {
+                usuarioDao.delete(existing)
+            }
         } catch (_: Exception) {
-            syncManagerProvider().syncEntity(ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO)
+            syncManagerProvider().syncEntity(SyncConstants.ENTITY_USUARIO)
         }
     }
 
@@ -110,11 +121,13 @@ class UsuarioRepositoryImpl(
     }
 
     private suspend fun persistRemote(remote: Usuario, localId: Long) {
-        usuarioDao.update(
-            remote.toRoomEntity().copy(
-                localId = localId,
-                syncState = SyncState.SYNCED
+        database.withTransaction {
+            usuarioDao.update(
+                remote.toRoomEntity().copy(
+                    localId = localId,
+                    syncState = SyncState.SYNCED
+                )
             )
-        )
+        }
     }
 }

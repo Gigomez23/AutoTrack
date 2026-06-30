@@ -201,6 +201,7 @@ class VehiculoViewModel(
 
     fun buscarVehiculo(id: Long) {
         _selectedVehicleId.value = id
+        if (id < 0) return
         viewModelScope.launch {
             try {
                 vehiculoRepository.refreshVehiculoById(id)

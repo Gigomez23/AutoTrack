@@ -23,6 +23,9 @@ interface RegistroCombustibleDao {
     @Query("SELECT * FROM registros_combustible WHERE vehiculoId = :vehiculoId AND syncState != 'PENDING_DELETE' ORDER BY fechaRegistro DESC, localId DESC")
     fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroCombustibleEntity>>
 
+    @Query("UPDATE registros_combustible SET vehiculoId = :newVehiculoId WHERE vehiculoId = :oldVehiculoId")
+    suspend fun updateVehiculoId(oldVehiculoId: Long, newVehiculoId: Long)
+
     @Query("SELECT * FROM registros_combustible WHERE syncState != 'SYNCED'")
     suspend fun getPendingSync(): List<RegistroCombustibleEntity>
 

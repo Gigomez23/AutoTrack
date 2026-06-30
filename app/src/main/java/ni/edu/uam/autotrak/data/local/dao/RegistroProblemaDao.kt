@@ -23,6 +23,9 @@ interface RegistroProblemaDao {
     @Query("SELECT * FROM registros_problema WHERE vehiculoId = :vehiculoId AND syncState != 'PENDING_DELETE' ORDER BY fechaRegistro DESC, localId DESC")
     fun observeByVehiculoId(vehiculoId: Long): Flow<List<RegistroProblemaEntity>>
 
+    @Query("UPDATE registros_problema SET vehiculoId = :newVehiculoId WHERE vehiculoId = :oldVehiculoId")
+    suspend fun updateVehiculoId(oldVehiculoId: Long, newVehiculoId: Long)
+
     @Query("SELECT * FROM registros_problema WHERE syncState != 'SYNCED'")
     suspend fun getPendingSync(): List<RegistroProblemaEntity>
 

@@ -2,15 +2,19 @@ package ni.edu.uam.autotrak.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
 import ni.edu.uam.autotrak.data.remote.SessionManager
 import ni.edu.uam.autotrak.data.remote.model.LoginRequest
 import ni.edu.uam.autotrak.data.remote.model.Usuario
 import ni.edu.uam.autotrak.data.repository.UsuarioRepository
 
 class AuthViewModel(
+    private val database: AppDatabase,
     private val sessionManager: SessionManager,
     private val usuarioRepository: UsuarioRepository
 ) : ViewModel() {
@@ -32,8 +36,14 @@ class AuthViewModel(
         }
     }
 
-    fun logout() {
-        sessionManager.clear()
-        _loginState.value = UiState.Success(false)
+    fun logout(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                database.clearAllTables()
+            }
+            sessionManager.clear()
+            _loginState.value = UiState.Success(false)
+            onComplete()
+        }
     }
 }

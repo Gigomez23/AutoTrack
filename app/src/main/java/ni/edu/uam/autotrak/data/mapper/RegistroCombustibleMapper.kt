@@ -36,7 +36,7 @@ fun RegistroCombustibleSyncDto.toRoomEntity(vehiculoId: Long? = null): RegistroC
 
 fun RegistroCombustibleEntity.toRemoteModel(): RegistroCombustible {
     return RegistroCombustible(
-        id = serverId,
+        id = serverId ?: localId.takeIf { it > 0 }?.let { -it },
         fechaRegistro = fechaRegistro,
         nota = nota,
         cantidadCombustible = cantidadCombustible,

@@ -31,19 +31,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AutoTrakTheme {
-                AppNavigation(sessionManager)
+                AppNavigation(sessionManager, AppDatabase.getInstance(this@MainActivity))
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation(sessionManager: SessionManager) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val database = ni.edu.uam.autotrak.data.local.db.AppDatabase.getInstance(context)
-    
+fun AppNavigation(sessionManager: SessionManager, database: AppDatabase) {
     val syncManager = remember {
         ni.edu.uam.autotrak.data.sync.SyncManager(
+            database,
             database.syncMetadataDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
             database.usuarioDao(),
@@ -60,6 +58,7 @@ fun AppNavigation(sessionManager: SessionManager) {
 
     val usuarioRepository = remember {
         ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl(
+            database,
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
             database.usuarioDao()
         ) { syncManager }
@@ -68,7 +67,7 @@ fun AppNavigation(sessionManager: SessionManager) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel(factory = object : androidx.lifecycle.ViewModelProvider.Factory {
         override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-            return AuthViewModel(sessionManager, usuarioRepository) as T
+            return AuthViewModel(database, sessionManager, usuarioRepository) as T
         }
     })
 
@@ -87,9 +86,10 @@ fun AppNavigation(sessionManager: SessionManager) {
         }
         composable(Screen.Home.route) {
             MainScreen(sessionManager = sessionManager, onLogout = {
-                authViewModel.logout()
-                navController.navigate(Screen.Login.route) {
-                    popUpTo(0)
+                authViewModel.logout {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(0)
+                    }
                 }
             })
         }

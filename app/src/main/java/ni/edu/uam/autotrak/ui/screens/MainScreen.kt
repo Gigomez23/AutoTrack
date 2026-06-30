@@ -57,6 +57,7 @@ fun MainScreen(
     // SyncManager initialization
     val syncManager = remember {
         SyncManager(
+            database,
             database.syncMetadataDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario,
             database.usuarioDao(),
@@ -71,10 +72,10 @@ fun MainScreen(
         )
     }
 
-    val usuarioRepository = remember { UsuarioRepositoryImpl(ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao()) { syncManager } }
-    val vehiculoRepository = remember { VehiculoRepositoryImpl(database.vehiculoDao()) { syncManager } }
-    val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database.registroCombustibleDao()) { syncManager } }
-    val problemaRepository = remember { RegistroProblemaRepositoryImpl(database.registroProblemaDao()) { syncManager } }
+    val usuarioRepository = remember { UsuarioRepositoryImpl(database, ni.edu.uam.autotrak.data.remote.RetrofitClient.api_usuario, database.usuarioDao()) { syncManager } }
+    val vehiculoRepository = remember { VehiculoRepositoryImpl(database, database.vehiculoDao(), { syncManager }) }
+    val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database, database.registroCombustibleDao(), { syncManager }) }
+    val problemaRepository = remember { RegistroProblemaRepositoryImpl(database, database.registroProblemaDao(), { syncManager }) }
 
     // App launch sync
     LaunchedEffect(Unit) {
