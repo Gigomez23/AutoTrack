@@ -1,6 +1,7 @@
 package ni.edu.uam.autotrak.data.remote.api
 
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
+import ni.edu.uam.autotrak.data.remote.model.sync.RegistroCombustibleSyncDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -13,6 +14,13 @@ interface RegistroCombustibleApi {
     suspend fun createRegistroCombustible(@Path("vehiculoId") vehiculoId: Long,
                                           @Body registroCombustible: RegistroCombustible): RegistroCombustible
 
+    @PUT("api/v1/combustibles/{id}")
+    suspend fun updateRegistroCombustible(@Path("id") id: Long,
+                                          @Body registroCombustible: RegistroCombustible): RegistroCombustible
+
+    @DELETE("api/v1/combustibles/{id}")
+    suspend fun deleteRegistroCombustible(@Path("id") id: Long)
+
     @GET("api/v1/combustibles/vehiculo/{vehiculoId}")
     suspend fun getRegistroCombustibleByVehiculoId(@Path("vehiculoId") vehiculoId: Long): List<RegistroCombustible>
 
@@ -21,4 +29,7 @@ interface RegistroCombustibleApi {
 
     @GET("api/v1/combustibles/vehiculo/{vehiculoId}/rendimiento")
     suspend fun getRendimientoByVehiculoId(@Path("vehiculoId") vehiculoId: Long): Double
+
+    @GET("api/v1/combustibles/updated-after/{timestamp}")
+    suspend fun getUpdatedAfter(@Path("timestamp") timestamp: Long): List<RegistroCombustibleSyncDto>
 }

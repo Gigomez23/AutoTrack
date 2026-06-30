@@ -19,6 +19,9 @@ import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import ni.edu.uam.autotrak.ui.components.EmptyState
 import ni.edu.uam.autotrak.ui.components.VehiculoSelector
 import ni.edu.uam.autotrak.viewmodel.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import ni.edu.uam.autotrak.ui.components.SyncStatusBadge
+import ni.edu.uam.autotrak.ui.components.OfflineBanner
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -26,6 +29,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun RegistroProblemaScreen(
     viewModel: RegistroProblemaViewModel,
+    isOffline: Boolean,
     initialVehiculoId: Long? = null,
     onAddRegistro: (Long) -> Unit,
     onEditRegistro: (Long, RegistroProblema) -> Unit
@@ -37,6 +41,7 @@ fun RegistroProblemaScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val currentFilter by viewModel.filter.collectAsState()
     val currentSort by viewModel.sort.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
     var showFilters by remember { mutableStateOf(false) }
 
@@ -47,18 +52,21 @@ fun RegistroProblemaScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Registro de Problemas") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                actions = {
-                    IconButton(onClick = { showFilters = !showFilters }) {
-                        Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+            Column {
+                TopAppBar(
+                    title = { Text("Registro de Problemas") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    actions = {
+                        IconButton(onClick = { showFilters = !showFilters }) {
+                            Icon(Icons.Default.FilterList, contentDescription = "Filtros")
+                        }
                     }
-                }
-            )
+                )
+                OfflineBanner(isOffline = isOffline)
+            }
         },
         floatingActionButton = {
             selectedVehiculoId?.let { id ->
@@ -91,9 +99,13 @@ fun RegistroProblemaScreen(
                     )
                 }
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.cargarRegistrosProblema(selectedVehiculoId!!) },
+                    modifier = Modifier.weight(1f)
+                ) {
                     when (val state = uiState) {
-                        is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                        is UiState.Loading -> if (!isRefreshing) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                         is UiState.Error -> Text(text = state.message, modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.error)
                         is UiState.Success -> {
                             IssueList(
@@ -228,6 +240,8 @@ fun IssueItem(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SyncStatusBadge(syncState = registro.syncState)
                 }
                 
                 Row {
@@ -406,7 +420,7 @@ fun IssueFormScreen(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("Guardar", style = MaterialTheme.typography.titleMedium)
+                Text(if (registroToEdit == null) "Guardar" else "Actualizar", style = MaterialTheme.typography.titleMedium)
             }
         }
     }

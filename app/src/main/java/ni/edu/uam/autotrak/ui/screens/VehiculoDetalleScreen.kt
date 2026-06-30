@@ -22,13 +22,19 @@ import ni.edu.uam.autotrak.data.remote.model.Vehiculo
 import ni.edu.uam.autotrak.viewmodel.UiState
 import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
 
+import ni.edu.uam.autotrak.ui.components.OfflineBanner
+import ni.edu.uam.autotrak.ui.components.SyncStatusBadge
 import ni.edu.uam.autotrak.viewmodel.EfficiencyPoint
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehiculoDetalleScreen(
     viewModel: VehiculoViewModel,
     vehiculoId: Long,
+    isOffline: Boolean,
     onEdit: (Long) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -44,19 +50,22 @@ fun VehiculoDetalleScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Detalle del Vehículo") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
+            Column {
+                TopAppBar(
+                    title = { Text("Detalle del Vehículo") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { onEdit(vehiculoId) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Editar")
+                        }
                     }
-                },
-                actions = {
-                    IconButton(onClick = { onEdit(vehiculoId) }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Editar")
-                    }
-                }
-            )
+                )
+                OfflineBanner(isOffline = isOffline)
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -89,6 +98,10 @@ fun VehiculoDetalleContent(
     avgEfficiency: Double,
     avgMonthlyCost: Double
 ) {
+    val lastSyncText = remember(vehiculo.fechaActualizacion) {
+        vehiculo.fechaActualizacion?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) ?: "Desconocida"
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -102,17 +115,28 @@ fun VehiculoDetalleContent(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = vehiculo.apodo?.takeIf { it.isNotBlank() } ?: "${vehiculo.marca} ${vehiculo.modelo}",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = vehiculo.apodo?.takeIf { it.isNotBlank() } ?: "${vehiculo.marca} ${vehiculo.modelo}",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    SyncStatusBadge(syncState = vehiculo.syncState)
+                }
                 Text(
                     text = "${vehiculo.marca} ${vehiculo.modelo} (${vehiculo.anio})",
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Badge { Text("Placa: ${vehiculo.placa}") }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Última sincronización: $lastSyncText",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
             }
         }
 

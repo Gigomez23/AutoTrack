@@ -13,97 +13,119 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
+import ni.edu.uam.autotrak.ui.components.OfflineBanner
 import ni.edu.uam.autotrak.viewmodel.HomeViewModel
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    isOffline: Boolean,
     onNavigateToVehicles: () -> Unit,
     onNavigateToFuel: () -> Unit,
     onNavigateToIssues: () -> Unit,
     onVehicleClick: (Long) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    if (uiState.isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
-    }
+    Column(modifier = Modifier.fillMaxSize()) {
+        OfflineBanner(isOffline = isOffline)
+        
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.loadDashboardData() },
+            modifier = Modifier.weight(1f)
+        ) {
+            if (uiState.isLoading && !isRefreshing) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.error != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
+                        Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
+                        Button(onClick = { viewModel.loadDashboardData() }) {
+                            Text("Reintentar")
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        item { Spacer(modifier = Modifier.height(8.dp)) }
+                    // 1. Greeting & Avatar
+                    item {
+                        HeaderSection(userName = uiState.user?.nombres ?: "Usuario")
+                    }
 
-        // 1. Greeting & Avatar
-        item {
-            HeaderSection(userName = uiState.user?.nombres ?: "Usuario")
-        }
+                    // 2. Statistics 2x2 Grid
+                    item {
+                        StatsGrid(
+                            totalVehicles = uiState.totalVehicles,
+                            openIssues = uiState.openIssues,
+                            avgEfficiency = uiState.fleetEfficiency,
+                            totalFuelRecords = uiState.totalFuelRecords
+                        )
+                    }
 
-        // 2. Statistics 2x2 Grid
-        item {
-            StatsGrid(
-                totalVehicles = uiState.totalVehicles,
-                openIssues = uiState.openIssues,
-                avgEfficiency = uiState.fleetEfficiency,
-                totalFuelRecords = uiState.totalFuelRecords
-            )
-        }
+                    // 3. Quick Actions
+                    item {
+                        QuickActionsSection(
+                            onNavigateToFuel = onNavigateToFuel,
+                            onNavigateToIssues = onNavigateToIssues,
+                            onNavigateToVehicles = onNavigateToVehicles
+                        )
+                    }
 
-        // 3. Quick Actions
-        item {
-            QuickActionsSection(
-                onNavigateToFuel = onNavigateToFuel,
-                onNavigateToIssues = onNavigateToIssues,
-                onNavigateToVehicles = onNavigateToVehicles
-            )
-        }
+                    // 4. My Vehicles Carousel
+                    item {
+                        MyVehiclesSection(
+                            vehicles = uiState.vehicles,
+                            metricsMap = uiState.vehicleStats,
+                            onVehicleClick = onVehicleClick,
+                            onViewAll = onNavigateToVehicles
+                        )
+                    }
 
-        // 4. My Vehicles Carousel
-        item {
-            MyVehiclesSection(
-                vehicles = uiState.vehicles,
-                metricsMap = uiState.vehicleStats,
-                onVehicleClick = onVehicleClick,
-                onViewAll = onNavigateToVehicles
-            )
-        }
+                    // 5. Recent Activity Timeline
+                    if (uiState.recentActivity.isNotEmpty()) {
+                        item {
+                            SectionHeader(title = "Actividad Reciente")
+                        }
+                        items(uiState.recentActivity) { activity ->
+                            ActivityItemRow(
+                                item = activity,
+                                relativeTime = viewModel.getRelativeTime(activity.timestamp)
+                            )
+                        }
+                    }
 
-        // 5. Recent Activity Timeline
-        if (uiState.recentActivity.isNotEmpty()) {
-            item {
-                SectionHeader(title = "Actividad Reciente")
-            }
-            items(uiState.recentActivity) { activity ->
-                ActivityItemRow(
-                    item = activity,
-                    relativeTime = viewModel.getRelativeTime(activity.timestamp)
-                )
-            }
-        }
-
-        // 6. Insights
-        if (uiState.insights.isNotEmpty()) {
-            item {
-                InsightsSection(insights = uiState.insights)
+                    // 6. Insights
+                    if (uiState.insights.isNotEmpty()) {
+                        item {
+                            InsightsSection(insights = uiState.insights)
+                        }
+                    }
+                }
             }
         }
     }
@@ -406,8 +428,8 @@ fun VehicleCarouselCard(
                         value = if ((metrics?.efficiency ?: 0.0) > 0) String.format(Locale.getDefault(), "%.1f km/L", metrics?.efficiency) else "N/A"
                     )
                     SummaryItem(
-                        label = "Costo/km",
-                        value = if ((metrics?.costPerKm ?: 0.0) > 0) String.format(Locale.getDefault(), "$%.2f", metrics?.costPerKm) else "N/A"
+                        label = "Costo Mensual",
+                        value = if ((metrics?.averageMonthlyCost ?: 0.0) > 0) String.format(Locale.getDefault(), "$%.0f", metrics?.averageMonthlyCost) else "N/A"
                     )
                 }
                 
