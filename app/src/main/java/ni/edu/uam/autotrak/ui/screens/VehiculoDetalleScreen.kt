@@ -36,6 +36,7 @@ fun VehiculoDetalleScreen(
     vehiculoId: Long,
     isOffline: Boolean,
     onEdit: (Long) -> Unit,
+    onNavigateToDocuments: (Long) -> Unit,
     onBack: () -> Unit,
 ) {
     val detailState by viewModel.detailUiState.collectAsState()
@@ -82,7 +83,8 @@ fun VehiculoDetalleScreen(
                         rendimientoData = rendimientoData,
                         costosMensualesData = costosMensualesData,
                         avgEfficiency = avgEfficiency,
-                        avgMonthlyCost = avgMonthlyCost
+                        avgMonthlyCost = avgMonthlyCost,
+                        onNavigateToDocuments = { onNavigateToDocuments(vehiculoId) }
                     )
                 }
             }
@@ -96,7 +98,8 @@ fun VehiculoDetalleContent(
     rendimientoData: List<EfficiencyPoint>,
     costosMensualesData: List<EfficiencyPoint>,
     avgEfficiency: Double,
-    avgMonthlyCost: Double
+    avgMonthlyCost: Double,
+    onNavigateToDocuments: () -> Unit
 ) {
     val lastSyncText = remember(vehiculo.fechaActualizacion) {
         vehiculo.fechaActualizacion?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) ?: "Desconocida"
@@ -167,6 +170,20 @@ fun VehiculoDetalleContent(
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DetailRow(Icons.Default.Fingerprint, "VIN", vehiculo.vin ?: "N/A")
                 DetailRow(Icons.Default.Info, "Estado", vehiculo.estado ?: "N/A")
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                OutlinedButton(
+                    onClick = onNavigateToDocuments,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Folder, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ver Documentos del Vehículo")
+                }
             }
         }
 

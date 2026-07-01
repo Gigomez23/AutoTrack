@@ -1,10 +1,9 @@
-package ni.edu.uam.autotrak.data.remote.model
+package ni.edu.uam.autotrak.data.remote.model.sync
 
-import ni.edu.uam.autotrak.data.sync.SyncState
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-data class DocumentoVehiculo(
+data class DocumentoVehiculoSyncDTO(
     val id: Long? = null,
     val fechaCreacion: LocalDateTime? = null,
     val fechaActualizacion: LocalDateTime? = null,
@@ -13,5 +12,5 @@ data class DocumentoVehiculo(
     val imagen: String? = "",
     val nombre: String? = "",
     val vehiculoId: Long? = null,
-    val syncState: SyncState = SyncState.SYNCED
+    val eliminado: Boolean = false
 )

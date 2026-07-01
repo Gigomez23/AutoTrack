@@ -3,6 +3,7 @@ package ni.edu.uam.autotrak.data.sync
 import android.util.Log
 import androidx.room.withTransaction
 import ni.edu.uam.autotrak.data.local.dao.DocumentoDao
+import ni.edu.uam.autotrak.data.local.dao.DocumentoVehiculoDao
 import ni.edu.uam.autotrak.data.local.dao.LicenciaDao
 import ni.edu.uam.autotrak.data.local.dao.MultaDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
@@ -18,6 +19,7 @@ import ni.edu.uam.autotrak.data.mapper.toCreateRequestModel
 import ni.edu.uam.autotrak.data.mapper.toRoomEntity
 import ni.edu.uam.autotrak.data.mapper.toSyncDto
 import ni.edu.uam.autotrak.data.remote.api.DocumentoApi
+import ni.edu.uam.autotrak.data.remote.api.DocumentoVehiculoApi
 import ni.edu.uam.autotrak.data.remote.api.LicenciaApi
 import ni.edu.uam.autotrak.data.remote.api.MultaApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroApi
@@ -26,6 +28,7 @@ import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
 import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
 import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_DOCUMENTO_VEHICULO
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_LICENCIA
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_DOCUMENTO
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_MULTA
@@ -50,6 +53,8 @@ class SyncManager(
     private val licenciaDao: LicenciaDao,
     private val multaApi: MultaApi,
     private val multaDao: MultaDao,
+    private val documentoVehiculoApi: DocumentoVehiculoApi,
+    private val documentoVehiculoDao: DocumentoVehiculoDao,
     private val documentoApi: DocumentoApi,
     private val documentoDao: DocumentoDao
 ) {
@@ -85,6 +90,10 @@ class SyncManager(
                 pushMulta()
                 pullMulta()
             }
+            ENTITY_DOCUMENTO_VEHICULO -> {
+                pushDocumentoVehiculo()
+                pullDocumentoVehiculo()
+            }
             ENTITY_DOCUMENTO -> {
                 pushDocumentos()
                 pullDocumentos()
@@ -109,6 +118,7 @@ class SyncManager(
         runSyncStep { pushRegistros() }
         runSyncStep { pushLicencia() }
         runSyncStep { pushMulta() }
+        runSyncStep { pushDocumentoVehiculo() }
         runSyncStep { pushDocumentos() }
     }
 
@@ -120,6 +130,7 @@ class SyncManager(
         runSyncStep { pullRegistros() }
         runSyncStep { pullLicencia() }
         runSyncStep { pullMulta() }
+        runSyncStep { pullDocumentoVehiculo() }
         runSyncStep { pullDocumentos() }
     }
 
@@ -535,6 +546,69 @@ class SyncManager(
             }
         } catch (e: Exception) {
             Log.e("SyncManager", "Failed to pull multas", e)
+        }
+    }
+
+    // --- DOCUMENTO VEHICULO ---
+    suspend fun pushDocumentoVehiculo() {
+        documentoVehiculoDao.getPendingSync().forEach { local ->
+            try {
+                val remote = when (local.syncState) {
+                    SyncState.PENDING_CREATE -> documentoVehiculoApi.createDocumentoVehiculo(local.toRemoteModel().copy(id = null))
+                    SyncState.PENDING_UPDATE -> local.serverId?.let { documentoVehiculoApi.updateDocumentoVehiculo(it, local.toRemoteModel()) }
+                    SyncState.PENDING_DELETE -> {
+                        local.serverId?.let { documentoVehiculoApi.deleteDocumentoVehiculo(it) }
+                        database.withTransaction { documentoVehiculoDao.delete(local) }
+                        null
+                    }
+                    else -> null
+                }
+                remote?.let {
+                    database.withTransaction {
+                        documentoVehiculoDao.update(
+                            it.toRoomEntity().copy(
+                                localId = local.localId,
+                                vehiculoId = it.vehiculoId ?: local.vehiculoId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push documento vehiculo ${local.localId}", e)
+            }
+        }
+    }
+
+    suspend fun pullDocumentoVehiculo() {
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_DOCUMENTO_VEHICULO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        try {
+            val remoteList = documentoVehiculoApi.getUpdatedAfter(lastSync)
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { documentoVehiculoDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { documentoVehiculoDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity(remote.vehiculoId ?: existing?.vehiculoId).copy(
+                            localId = existing?.localId ?: 0,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            documentoVehiculoDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                documentoVehiculoDao.update(next)
+                            }
+                        }
+                    }
+                }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_DOCUMENTO_VEHICULO, System.currentTimeMillis()))
+            }
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull documento vehiculos", e)
         }
     }
 

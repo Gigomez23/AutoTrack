@@ -1,6 +1,7 @@
 package ni.edu.uam.autotrak.data.remote
 
 import ni.edu.uam.autotrak.data.remote.api.DocumentoApi
+import ni.edu.uam.autotrak.data.remote.api.DocumentoVehiculoApi
 import ni.edu.uam.autotrak.data.remote.api.LicenciaApi
 import ni.edu.uam.autotrak.data.remote.api.MultaApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroApi
@@ -91,6 +92,10 @@ object RetrofitClient {
 
     val api_documento: DocumentoApi by lazy {
         retrofit.create(DocumentoApi::class.java)
+    }
+
+    val api_documento_vehiculo: DocumentoVehiculoApi by lazy {
+        retrofit.create(DocumentoVehiculoApi::class.java)
     }
 
     val api_licencia: LicenciaApi by lazy {

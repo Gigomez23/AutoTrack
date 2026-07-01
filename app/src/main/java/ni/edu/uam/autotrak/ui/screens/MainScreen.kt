@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -25,11 +26,14 @@ import ni.edu.uam.autotrak.viewmodel.UserViewModel
 import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
 import ni.edu.uam.autotrak.viewmodel.LicenciaViewModel
 import ni.edu.uam.autotrak.viewmodel.MultasViewModel
+import ni.edu.uam.autotrak.viewmodel.DocumentoVehiculoViewModel
 import ni.edu.uam.autotrak.ui.screens.VehiculoDetalleScreen
 import ni.edu.uam.autotrak.ui.screens.LicenciaScreen
 import ni.edu.uam.autotrak.ui.screens.LicenciaFormScreen
 import ni.edu.uam.autotrak.ui.screens.MultasScreen
 import ni.edu.uam.autotrak.ui.screens.MultaFormScreen
+import ni.edu.uam.autotrak.ui.screens.DocumentoVehiculoScreen
+import ni.edu.uam.autotrak.ui.screens.DocumentoVehiculoFormScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import ni.edu.uam.autotrak.data.remote.RetrofitClient
@@ -84,6 +88,8 @@ fun MainScreen(
             database.licenciaDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_multa,
             database.multaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento_vehiculo,
+            database.documentoVehiculoDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento,
             database.documentoDao()
         )
@@ -95,6 +101,7 @@ fun MainScreen(
     val problemaRepository = remember { RegistroProblemaRepositoryImpl(database, database.registroProblemaDao(), { syncManager }) }
     val licenciaRepository = remember { LicenciaRepositoryImpl(database, database.licenciaDao(), { syncManager }) }
     val multaRepository = remember { MultaRepositoryImpl(database, database.multaDao(), { syncManager }) }
+    val documentoVehiculoRepository = remember { DocumentoVehiculoRepositoryImpl(database, database.documentoVehiculoDao(), { syncManager }) }
 
     // App launch sync
     LaunchedEffect(Unit) {
@@ -118,6 +125,7 @@ fun MainScreen(
                 modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository, multaRepository) as T
                 modelClass.isAssignableFrom(LicenciaViewModel::class.java) -> LicenciaViewModel(sessionManager, licenciaRepository) as T
                 modelClass.isAssignableFrom(MultasViewModel::class.java) -> MultasViewModel(sessionManager, multaRepository) as T
+                modelClass.isAssignableFrom(DocumentoVehiculoViewModel::class.java) -> DocumentoVehiculoViewModel(documentoVehiculoRepository) as T
                 else -> throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
@@ -130,6 +138,7 @@ fun MainScreen(
     val homeViewModel: HomeViewModel = viewModel(factory = factory)
     val licenciaViewModel: LicenciaViewModel = viewModel(factory = factory)
     val multasViewModel: MultasViewModel = viewModel(factory = factory)
+    val docVehiculoViewModel: DocumentoVehiculoViewModel = viewModel(factory = factory)
 
     val menuItems = listOf(
         MenuItem("Inicio", Screen.Home.route, Icons.Default.Home),
@@ -240,6 +249,9 @@ fun MainScreen(
                         isOffline = isOffline,
                         onEdit = { vehicleId ->
                             navController.navigate("vehicle_edit/$vehicleId")
+                        },
+                        onNavigateToDocuments = { vehicleId ->
+                            navController.navigate(Screen.VehicleDocuments.createRoute(vehicleId))
                         },
                         onBack = { navController.popBackStack() }
                     )
@@ -460,6 +472,54 @@ fun MainScreen(
                     LicenciaFormScreen(
                         viewModel = licenciaViewModel,
                         licenciaToEdit = licencia,
+                        onSuccess = { navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    Screen.VehicleDocuments.route,
+                    arguments = listOf(navArgument("vehiculoId") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
+                    LaunchedEffect(vehiculoId) {
+                        docVehiculoViewModel.cargarDocumentos(vehiculoId)
+                    }
+                    DocumentoVehiculoScreen(
+                        viewModel = docVehiculoViewModel,
+                        onNavigateToCreateDocumento = { navController.navigate("doc_vehiculo_form/$vehiculoId") },
+                        onNavigateToEditDocumento = { id -> navController.navigate("doc_vehiculo_edit/$id/$vehiculoId") },
+                        onViewDocumentFile = { /* Implement file viewer */ },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    "doc_vehiculo_form/{vehiculoId}",
+                    arguments = listOf(navArgument("vehiculoId") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
+                    DocumentoVehiculoFormScreen(
+                        viewModel = docVehiculoViewModel,
+                        vehiculoId = vehiculoId,
+                        onSuccess = { navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    "doc_vehiculo_edit/{id}/{vehiculoId}",
+                    arguments = listOf(
+                        navArgument("id") { type = NavType.LongType },
+                        navArgument("vehiculoId") { type = NavType.LongType }
+                    )
+                ) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                    val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
+                    DocumentoVehiculoFormScreen(
+                        viewModel = docVehiculoViewModel,
+                        vehiculoId = vehiculoId,
+                        documentoId = id,
                         onSuccess = { navController.popBackStack() },
                         onBack = { navController.popBackStack() }
                     )
