@@ -1,9 +1,7 @@
 package ni.edu.uam.autotrak.data.remote
 
 import ni.edu.uam.autotrak.data.remote.api.DocumentoApi
-import ni.edu.uam.autotrak.data.remote.api.DocumentoLicenciaApi
-import ni.edu.uam.autotrak.data.remote.api.DocumentoVehiculoApi
-import ni.edu.uam.autotrak.data.remote.api.PreferenciasApi
+import ni.edu.uam.autotrak.data.remote.api.LicenciaApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
@@ -88,5 +86,13 @@ object RetrofitClient {
 
     val api_registro_combustible: RegistroCombustibleApi by lazy {
         retrofit.create(RegistroCombustibleApi::class.java)
+    }
+
+    val api_documento: DocumentoApi by lazy {
+        retrofit.create(DocumentoApi::class.java)
+    }
+
+    val api_licencia: LicenciaApi by lazy {
+        retrofit.create(LicenciaApi::class.java)
     }
 }

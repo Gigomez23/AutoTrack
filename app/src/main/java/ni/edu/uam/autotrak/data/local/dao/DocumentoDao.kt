@@ -16,6 +16,12 @@ interface DocumentoDao {
     fun observeAll(): Flow<List<DocumentoEntity>>
 
     @Query("SELECT * FROM documentos WHERE localId = :localId LIMIT 1")
+    fun observeByLocalId(localId: Long): Flow<DocumentoEntity?>
+
+    @Query("SELECT * FROM documentos WHERE serverId = :serverId LIMIT 1")
+    fun observeByServerId(serverId: Long): Flow<DocumentoEntity?>
+
+    @Query("SELECT * FROM documentos WHERE localId = :localId LIMIT 1")
     suspend fun getByLocalId(localId: Long): DocumentoEntity?
 
     @Query("SELECT * FROM documentos WHERE serverId = :serverId LIMIT 1")
