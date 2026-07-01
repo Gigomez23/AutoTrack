@@ -3,6 +3,7 @@ package ni.edu.uam.autotrak.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,7 +33,9 @@ import ni.edu.uam.autotrak.viewmodel.EfficiencyPoint
 import ni.edu.uam.autotrak.viewmodel.FuelChartType
 import ni.edu.uam.autotrak.viewmodel.RegistroCombustibleViewModel
 import ni.edu.uam.autotrak.viewmodel.UiState
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 import ni.edu.uam.autotrak.ui.components.OfflineBanner
@@ -513,7 +516,35 @@ fun FuelLogFormScreen(
     var cantidadPagada by remember { mutableStateOf(registroToEdit?.cantidadPagado?.toString() ?: "") }
     var odometro by remember { mutableStateOf(registroToEdit?.odometro?.toString() ?: "") }
     var nota by remember { mutableStateOf(registroToEdit?.nota ?: "") }
-    var fecha by remember { mutableStateOf(registroToEdit?.fechaRegistro?.toString() ?: LocalDate.now().toString()) }
+    var fechaRegistro by remember { mutableStateOf(registroToEdit?.fechaRegistro ?: LocalDate.now()) }
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = fechaRegistro.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        fechaRegistro = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -535,13 +566,28 @@ fun FuelLogFormScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = fecha,
-                onValueChange = { fecha = it },
-                label = { Text("Fecha (AAAA-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
-            )
+            Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
+                OutlinedTextField(
+                    value = fechaRegistro.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    onValueChange = { },
+                    label = { Text("Fecha de Registro") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                    readOnly = true,
+                    enabled = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    trailingIcon = {
+                        Icon(Icons.Default.CalendarToday, contentDescription = "Seleccionar fecha")
+                    }
+                )
+            }
             OutlinedTextField(
                 value = cantidadCombustible,
                 onValueChange = { cantidadCombustible = it },
@@ -586,7 +632,7 @@ fun FuelLogFormScreen(
 
                     val registro = RegistroCombustible(
                         id = registroToEdit?.id,
-                        fechaRegistro = try { LocalDate.parse(fecha) } catch(e: Exception) { LocalDate.now() },
+                        fechaRegistro = fechaRegistro,
                         cantidadCombustible = cantidad,
                         cantidadPagado = pagado,
                         odometro = odo,
