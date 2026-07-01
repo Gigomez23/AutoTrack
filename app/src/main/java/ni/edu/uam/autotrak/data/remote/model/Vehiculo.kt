@@ -15,6 +15,7 @@ data class Vehiculo(
     val imagenes: List<String>? = emptyList(),
 //    val distanciaRecorrida: Long = 0,
     val usuario: Usuario? = null,
+    val usuarioId: Long? = null,
     val syncState: SyncState = SyncState.SYNCED,
     val fechaCreacion: java.time.LocalDateTime? = null,
     val fechaActualizacion: java.time.LocalDateTime? = null

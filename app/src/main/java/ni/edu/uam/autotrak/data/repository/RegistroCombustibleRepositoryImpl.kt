@@ -79,13 +79,23 @@ class RegistroCombustibleRepositoryImpl(
             )
         }
 
-        val parentVehicleId = existing?.vehiculoId
-        val serverId = existing?.serverId
+        val parentVehicleId = existing?.vehiculoId ?: dao.getByLocalId(localId)?.vehiculoId
+        val serverId = existing?.serverId ?: if (id > 0) id else null
         if (id < 0 || parentVehicleId == null || parentVehicleId <= 0 || serverId == null) {
             return dao.getByLocalId(localId)?.toRemoteModel() ?: registro
         }
 
-        return dao.getByLocalId(localId)?.toRemoteModel() ?: registro
+        return try {
+            val updated = RetrofitClient.api_registro_combustible.updateRegistroCombustible(
+                serverId,
+                dao.getByLocalId(localId)?.toRemoteModel() ?: registro
+            )
+            persistRemote(updated.toRoomEntity(parentVehicleId), localId)
+            dao.getByLocalId(localId)?.toRemoteModel() ?: updated
+        } catch (_: Exception) {
+            syncManagerProvider().syncEntity(SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE)
+            dao.getByLocalId(localId)?.toRemoteModel() ?: registro
+        }
     }
 
     override suspend fun delete(id: Long) {
