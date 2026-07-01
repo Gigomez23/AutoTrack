@@ -147,6 +147,24 @@ fun MantenimientoList(
     }
 }
 
+fun getTipoMantenimientoInfo(tipo: TipoMantenimiento?): Pair<String, Color> {
+    return when (tipo) {
+        TipoMantenimiento.CAMBIO_ACEITE_FILTRO -> "Aceite y Filtro" to Color(0xFF1976D2) // Blue
+        TipoMantenimiento.SISTEMA_FRENOS -> "Frenos" to Color(0xFFD32F2F) // Red
+        TipoMantenimiento.LLANTAS_Y_ALINEACION -> "Llantas/Alineación" to Color(0xFF388E3C) // Green
+        TipoMantenimiento.SUSPENSION_DIRECCION -> "Suspensión" to Color(0xFF689F38) // Light Green
+        TipoMantenimiento.SISTEMA_ELECTRICO -> "Eléctrico" to Color(0xFFFBC02D) // Yellow
+        TipoMantenimiento.SISTEMA_ENFRIAMIENTO -> "Enfriamiento" to Color(0xFFFFA000) // Orange
+        TipoMantenimiento.TRANSMISION_EMBRAGUE -> "Transmisión" to Color(0xFFE64A19) // Deep Orange
+        TipoMantenimiento.MOTOR_Y_COMBUSTIBLE -> "Motor" to Color(0xFFBF360C) // Brownish Red
+        TipoMantenimiento.AIRE_ACONDICIONADO -> "A/C" to Color(0xFF0288D1) // Light Blue
+        TipoMantenimiento.REPARACION_CORRECTIVA -> "Correctiva" to Color(0xFFC2185B) // Pink
+        TipoMantenimiento.INSPECCION_GENERAL -> "Inspección" to Color(0xFF455A64) // Blue Grey
+        TipoMantenimiento.OTRO -> "Otro" to Color(0xFF7B1FA2) // Purple
+        null -> "Otro" to Color(0xFF7B1FA2)
+    }
+}
+
 @Composable
 fun MantenimientoItemCard(
     mantenimiento: ServicioMantenimiento,
@@ -217,20 +235,8 @@ fun MantenimientoItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    val (label, color) = when(mantenimiento.tipoMantenimiento) {
-                        TipoMantenimiento.PREVENTIVO -> "Preventivo" to Color(0xFF1976D2)
-                        TipoMantenimiento.CORRECTIVO -> "Correctivo" to Color(0xFFD84315)
-                        TipoMantenimiento.PREDICTIVO -> "Predictivo" to Color(0xFF2E7D32)
-                        TipoMantenimiento.OTRO -> "Otro" to Color(0xFF7B1FA2)
-                        null -> "Otro" to Color(0xFF7B1FA2)
-                    }
-                    val bgColor = when(mantenimiento.tipoMantenimiento) {
-                        TipoMantenimiento.PREVENTIVO -> Color(0xFFE3F2FD)
-                        TipoMantenimiento.CORRECTIVO -> Color(0xFFFBE9E7)
-                        TipoMantenimiento.PREDICTIVO -> Color(0xFFE8F5E9)
-                        TipoMantenimiento.OTRO -> Color(0xFFF3E5F5)
-                        null -> Color(0xFFF3E5F5)
-                    }
+                    val (label, color) = getTipoMantenimientoInfo(mantenimiento.tipoMantenimiento)
+                    val bgColor = color.copy(alpha = 0.1f)
 
                     Surface(
                         color = bgColor,

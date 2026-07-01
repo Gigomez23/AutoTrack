@@ -20,6 +20,24 @@ import ni.edu.uam.autotrak.data.remote.model.ServicioMantenimiento
 import ni.edu.uam.autotrak.data.remote.model.TipoMantenimiento
 import ni.edu.uam.autotrak.viewmodel.MantenimientoViewModel
 
+fun getTipoMantenimientoLabel(tipo: TipoMantenimiento?): String {
+    return when (tipo) {
+        TipoMantenimiento.CAMBIO_ACEITE_FILTRO -> "Cambio de Aceite y Filtro"
+        TipoMantenimiento.SISTEMA_FRENOS -> "Sistema de Frenos"
+        TipoMantenimiento.LLANTAS_Y_ALINEACION -> "Llantas y Alineación"
+        TipoMantenimiento.SUSPENSION_DIRECCION -> "Suspensión y Dirección"
+        TipoMantenimiento.SISTEMA_ELECTRICO -> "Sistema Eléctrico"
+        TipoMantenimiento.SISTEMA_ENFRIAMIENTO -> "Sistema de Enfriamiento"
+        TipoMantenimiento.TRANSMISION_EMBRAGUE -> "Transmisión y Embrague"
+        TipoMantenimiento.MOTOR_Y_COMBUSTIBLE -> "Motor y Combustible"
+        TipoMantenimiento.AIRE_ACONDICIONADO -> "Aire Acondicionado"
+        TipoMantenimiento.REPARACION_CORRECTIVA -> "Reparación Correctiva"
+        TipoMantenimiento.INSPECCION_GENERAL -> "Inspección General"
+        TipoMantenimiento.OTRO -> "Otro"
+        null -> "Otro"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MantenimientoFormScreen(
@@ -32,7 +50,7 @@ fun MantenimientoFormScreen(
     var descripcion by remember { mutableStateOf("") }
     var distanciaAgendada by remember { mutableStateOf("") }
     var observaciones by remember { mutableStateOf("") }
-    var tipoMantenimiento: TipoMantenimiento? by remember { mutableStateOf(TipoMantenimiento.PREVENTIVO) }
+    var tipoMantenimiento: TipoMantenimiento? by remember { mutableStateOf(TipoMantenimiento.OTRO) }
     var afectaVehiculo by remember { mutableStateOf(false) }
     var completado by remember { mutableStateOf(false) }
 
@@ -116,15 +134,8 @@ fun MantenimientoFormScreen(
                 onExpandedChange = { expandedDropdown = !expandedDropdown },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val label = when (tipoMantenimiento) {
-                    TipoMantenimiento.PREVENTIVO -> "Preventivo"
-                    TipoMantenimiento.CORRECTIVO -> "Correctivo"
-                    TipoMantenimiento.PREDICTIVO -> "Predictivo"
-                    TipoMantenimiento.OTRO -> "Otro"
-                    null -> "Otro"
-                }
                 OutlinedTextField(
-                    value = label,
+                    value = getTipoMantenimientoLabel(tipoMantenimiento),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Tipo de Mantenimiento") },
@@ -137,14 +148,8 @@ fun MantenimientoFormScreen(
                     onDismissRequest = { expandedDropdown = false }
                 ) {
                     TipoMantenimiento.entries.forEach { tipo ->
-                        val itemLabel = when(tipo) {
-                            TipoMantenimiento.PREVENTIVO -> "Preventivo"
-                            TipoMantenimiento.CORRECTIVO -> "Correctivo"
-                            TipoMantenimiento.PREDICTIVO -> "Predictivo"
-                            TipoMantenimiento.OTRO -> "Otro"
-                        }
                         DropdownMenuItem(
-                            text = { Text(itemLabel) },
+                            text = { Text(getTipoMantenimientoLabel(tipo)) },
                             onClick = {
                                 tipoMantenimiento = tipo
                                 expandedDropdown = false

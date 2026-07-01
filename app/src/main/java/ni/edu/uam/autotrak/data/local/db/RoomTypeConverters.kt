@@ -44,12 +44,12 @@ class RoomTypeConverters {
         ?: SyncState.SYNCED
 
     @TypeConverter
-    fun fromTipoMantenimiento(value: TipoMantenimiento?): String = value?.name ?: TipoMantenimiento.PREVENTIVO.name
+    fun fromTipoMantenimiento(value: TipoMantenimiento?): String = value?.name ?: TipoMantenimiento.OTRO.name
 
     @TypeConverter
     fun toTipoMantenimiento(value: String?): TipoMantenimiento = value
         ?.let { runCatching { TipoMantenimiento.valueOf(it) }.getOrNull() }
-        ?: TipoMantenimiento.PREVENTIVO
+        ?: TipoMantenimiento.OTRO
 
     @TypeConverter
     fun fromLocalDateTime(value: java.time.LocalDateTime?): String? = value?.toString()

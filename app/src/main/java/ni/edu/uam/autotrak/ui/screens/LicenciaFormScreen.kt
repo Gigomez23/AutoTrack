@@ -32,7 +32,7 @@ fun LicenciaFormScreen(
     var categoriasInput by remember { mutableStateOf(licenciaToEdit?.categorias?.joinToString(", ") ?: "") }
     var fechaEmitida by remember { mutableStateOf(licenciaToEdit?.fechaEmitida ?: LocalDate.now()) }
     var fechaVencimiento by remember { mutableStateOf(licenciaToEdit?.fechaVencimiento ?: LocalDate.now().plusYears(5)) }
-    
+
     var showEmitidaPicker by remember { mutableStateOf(false) }
     var showVencimientoPicker by remember { mutableStateOf(false) }
 

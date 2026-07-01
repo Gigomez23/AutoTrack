@@ -18,7 +18,7 @@ fun ServicioMantenimiento.toRoomEntity(vehiculoId: Long? = null): ServicioManten
         completado = completado,
         distanciaAgendada = distanciaAgendada,
         observaciones = observaciones,
-        tipoMantenimiento = tipoMantenimiento ?: TipoMantenimiento.PREVENTIVO,
+        tipoMantenimiento = tipoMantenimiento ?: TipoMantenimiento.OTRO,
         vehiculoId = vehiculoId ?: this.vehiculoId,
         syncState = SyncState.SYNCED
     )
@@ -36,7 +36,7 @@ fun ServicioMantenimientoSyncDTO.toRoomEntity(vehiculoId: Long? = null): Servici
         completado = completado,
         distanciaAgendada = distanciaAgendada,
         observaciones = observaciones,
-        tipoMantenimiento = tipoMantenimiento ?: TipoMantenimiento.PREVENTIVO,
+        tipoMantenimiento = tipoMantenimiento ?: TipoMantenimiento.OTRO,
         vehiculoId = vehiculoId ?: this.vehiculoId,
         syncState = SyncState.SYNCED
     )

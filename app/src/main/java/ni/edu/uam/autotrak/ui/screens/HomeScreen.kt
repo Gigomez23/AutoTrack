@@ -386,16 +386,16 @@ fun VehicleCarouselCard(
     onClick: () -> Unit
 ) {
     val statusColor = when (vehiculo.estado) {
-        "CHUQUITI" -> Color(0xFF4CAF50) // Green
-        "CHIQUITI" -> Color(0xFFFFC107) // Amber
-        "CHACATA" -> Color(0xFFF44336) // Red
+        "EN_MARCHA" -> Color(0xFF4CAF50) // Green
+        "EN_MARCHA_CON_FALLAS" -> Color(0xFFFFC107) // Amber
+        "DETENIDO" -> Color(0xFFF44336) // Red
         else -> MaterialTheme.colorScheme.outline
     }
     
     val statusText = when (vehiculo.estado) {
-        "CHUQUITI" -> "Saludable"
-        "CHIQUITI" -> "Atención"
-        "CHACATA" -> "Crítico"
+        "EN_MARCHA" -> "Saludable"
+        "EN_MARCHA_CON_FALLAS" -> "Con Fallas"
+        "DETENIDO" -> "Detenido"
         else -> vehiculo.estado ?: "Desconocido"
     }
 

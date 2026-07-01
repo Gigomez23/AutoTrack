@@ -28,7 +28,7 @@ data class ServicioMantenimientoEntity(
     val completado: Boolean = false,
     val distanciaAgendada: Int? = null,
     val observaciones: String? = null,
-    val tipoMantenimiento: TipoMantenimiento = TipoMantenimiento.PREVENTIVO,
+    val tipoMantenimiento: TipoMantenimiento = TipoMantenimiento.OTRO,
     val vehiculoId: Long? = null,
     val syncState: SyncState = SyncState.SYNCED
 )

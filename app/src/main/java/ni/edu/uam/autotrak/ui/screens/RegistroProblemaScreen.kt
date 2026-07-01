@@ -211,6 +211,18 @@ fun IssueList(
     }
 }
 
+fun getTipoProblemaLabel(tipo: String?): String {
+    return when (tipo) {
+        "MECANICO" -> "Mecánico"
+        "ELECTRICO" -> "Eléctrico"
+        "CARROCERIA" -> "Carrocería"
+        "LLANTAS" -> "Llantas"
+        "DOCUMENTACION" -> "Documentación"
+        "OTRO" -> "Otro"
+        else -> tipo ?: "Desconocido"
+    }
+}
+
 @Composable
 fun IssueItem(
     registro: RegistroProblema,
@@ -232,7 +244,7 @@ fun IssueItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = registro.tipoProblema ?: "Problema Desconocido",
+                        text = getTipoProblemaLabel(registro.tipoProblema),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -323,11 +335,21 @@ fun IssueFormScreen(
     onSuccess: () -> Unit,
     onBack: () -> Unit
 ) {
-    var tipoProblema by remember { mutableStateOf(registroToEdit?.tipoProblema ?: "") }
+    var tipoProblema by remember { mutableStateOf(registroToEdit?.tipoProblema ?: "OTRO") }
     var nota by remember { mutableStateOf(registroToEdit?.nota ?: "") }
     var fechaRegistro by remember { mutableStateOf(registroToEdit?.fechaRegistro ?: LocalDate.now()) }
     var afectaVehiculo by remember { mutableStateOf(registroToEdit?.afectaVehiculo ?: false) }
     var activo by remember { mutableStateOf(registroToEdit?.activo ?: true) }
+
+    var expandedTipo by remember { mutableStateOf(false) }
+    val tiposProblema = listOf(
+        "MECANICO",
+        "ELECTRICO",
+        "CARROCERIA",
+        "LLANTAS",
+        "DOCUMENTACION",
+        "OTRO"
+    )
 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
@@ -399,13 +421,38 @@ fun IssueFormScreen(
                 )
             }
             
-            OutlinedTextField(
-                value = tipoProblema,
-                onValueChange = { tipoProblema = it },
-                label = { Text("Tipo de Problema") },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Eje: Motor, Frenos, Luces...") }
-            )
+            ExposedDropdownMenuBox(
+                expanded = expandedTipo,
+                onExpandedChange = { expandedTipo = !expandedTipo },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = getTipoProblemaLabel(tipoProblema),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Tipo de Problema") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTipo) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expandedTipo,
+                    onDismissRequest = { expandedTipo = false }
+                ) {
+                    tiposProblema.forEach { value ->
+                        DropdownMenuItem(
+                            text = { Text(getTipoProblemaLabel(value)) },
+                            onClick = {
+                                tipoProblema = value
+                                expandedTipo = false
+                            }
+                        )
+                    }
+                }
+            }
             
             OutlinedTextField(
                 value = nota,
