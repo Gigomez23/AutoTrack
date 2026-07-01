@@ -1,7 +1,11 @@
 package ni.edu.uam.autotrak.ui.screens
 
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -37,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -183,13 +188,27 @@ fun MainScreen(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "AutoTrak",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                HorizontalDivider()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(vertical = 40.dp, horizontal = 16.dp)
+                ) {
+                    Column {
+                        Text(
+                            "AutoTrak",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            "Gestión Vehicular",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 menuItems.forEach { item ->
                     NavigationDrawerItem(
                         label = { Text(item.title) },
@@ -208,13 +227,17 @@ fun MainScreen(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 NavigationDrawerItem(
-                    label = { Text("Cerrar Sesión") },
+                    label = { Text("Cerrar Sesión", fontWeight = FontWeight.Medium) },
                     selected = false,
                     onClick = {
                         onLogout()
                     },
                     icon = { Icon(Icons.Default.ExitToApp, contentDescription = null) },
-                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                    colors = NavigationDrawerItemDefaults.colors(
+                        unselectedTextColor = MaterialTheme.colorScheme.error,
+                        unselectedIconColor = MaterialTheme.colorScheme.error
+                    )
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
@@ -224,7 +247,10 @@ fun MainScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(menuItems.find { it.route == currentRoute }?.title ?: "AutoTrak")
+                        Text(
+                            menuItems.find { it.route == currentRoute }?.title ?: "AutoTrak",
+                            fontWeight = FontWeight.Bold
+                        )
                     },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
