@@ -1,12 +1,18 @@
 package ni.edu.uam.autotrak.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
 import ni.edu.uam.autotrak.ui.components.ServerStatusIndicator
 import ni.edu.uam.autotrak.viewmodel.AuthViewModel
@@ -23,69 +29,100 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     val loginState by viewModel.loginState.collectAsState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        ServerStatusIndicator(
-            monitor = serverStatusMonitor,
-            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-        Text(text = "AutoTrak Login", style = MaterialTheme.typography.headlineLarge)
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Button(
-            onClick = { viewModel.login(email, password) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = loginState !is UiState.Loading
-        ) {
-            if (loginState is UiState.Loading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-            } else {
-                Text("Login")
-            }
-        }
-
-        if (loginState is UiState.Error) {
-            Text(
-                text = (loginState as UiState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 16.dp)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            ServerStatusIndicator(
+                monitor = serverStatusMonitor,
+                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
             )
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        TextButton(onClick = onSignupClick) {
-            Text("Don't have an account? Sign up")
-        }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "AutoTrak",
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Gestión inteligente de tu vehículo",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(48.dp))
 
-        LaunchedEffect(loginState) {
-            if (loginState is UiState.Success && (loginState as UiState.Success<Boolean>).data) {
-                onLoginSuccess()
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Correo Electrónico") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Contraseña") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Button(
+                    onClick = { viewModel.login(email, password) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    enabled = loginState !is UiState.Loading,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    if (loginState is UiState.Loading) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text("Iniciar Sesión", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (loginState is UiState.Error) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = (loginState as UiState.Error).message,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                TextButton(onClick = onSignupClick) {
+                    Text("¿No tienes una cuenta? Regístrate aquí")
+                }
             }
         }
     }
-}
+
+    LaunchedEffect(loginState) {
+        if (loginState is UiState.Success && (loginState as UiState.Success<Boolean>).data) {
+            onLoginSuccess()
+        }
+    }
 }
