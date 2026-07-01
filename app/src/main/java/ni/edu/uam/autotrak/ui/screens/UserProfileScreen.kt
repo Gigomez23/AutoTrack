@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,15 +26,21 @@ import ni.edu.uam.autotrak.ui.components.SyncStatusBadge
 import ni.edu.uam.autotrak.viewmodel.UiState
 import ni.edu.uam.autotrak.viewmodel.UserViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserProfileScreen(
     viewModel: UserViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refreshProfile() },
+        modifier = Modifier.fillMaxSize()
+    ) {
         when (val state = uiState) {
-            is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            is UiState.Loading -> if (!isRefreshing) CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             is UiState.Error -> Text(
                 text = state.message,
                 modifier = Modifier.align(Alignment.Center),
