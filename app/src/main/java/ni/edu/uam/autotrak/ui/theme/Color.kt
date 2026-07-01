@@ -2,10 +2,65 @@ package ni.edu.uam.autotrak.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Navy Blue Base
+val NavyBlue = Color(0xFF25254B)
+val NavyBlueLight = Color(0xFF4E4E77)
+val NavyBlueDark = Color(0xFF000024)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Light Mode Palette
+val PrimaryLight = NavyBlue
+val OnPrimaryLight = Color.White
+val PrimaryContainerLight = Color(0xFFDEE0FF)
+val OnPrimaryContainerLight = Color(0xFF00105C)
+
+val SecondaryLight = Color(0xFF5B5D72)
+val OnSecondaryLight = Color.White
+val SecondaryContainerLight = Color(0xFFE0E1F9)
+val OnSecondaryContainerLight = Color(0xFF181A2C)
+
+val TertiaryLight = Color(0xFF77536D)
+val OnTertiaryLight = Color.White
+val TertiaryContainerLight = Color(0xFFFFD7F1)
+val OnTertiaryContainerLight = Color(0xFF2D1228)
+
+val ErrorLight = Color(0xFFBA1A1A)
+val OnErrorLight = Color.White
+val ErrorContainerLight = Color(0xFFFFDAD6)
+val OnErrorContainerLight = Color(0xFF410002)
+
+val BackgroundLight = Color(0xFFFEFBFF)
+val OnBackgroundLight = Color(0xFF1B1B1F)
+val SurfaceLight = Color(0xFFFEFBFF)
+val OnSurfaceLight = Color(0xFF1B1B1F)
+val SurfaceVariantLight = Color(0xFFE3E1EC)
+val OnSurfaceVariantLight = Color(0xFF46464F)
+val OutlineLight = Color(0xFF767680)
+
+// Dark Mode Palette
+val PrimaryDark = Color(0xFFBBC3FF)
+val OnPrimaryDark = Color(0xFF00218F)
+val PrimaryContainerDark = Color(0xFF25254B) // Use NavyBlue as container
+val OnPrimaryContainerDark = Color(0xFFDEE0FF)
+
+val SecondaryDark = Color(0xFFC3C5DD)
+val OnSecondaryDark = Color(0xFF2D2F42)
+val SecondaryContainerDark = Color(0xFF434659)
+val OnSecondaryContainerDark = Color(0xFFE0E1F9)
+
+val TertiaryDark = Color(0xFFE6BAD7)
+val OnTertiaryDark = Color(0xFF44263D)
+val TertiaryContainerDark = Color(0xFF5D3C55)
+val OnTertiaryContainerDark = Color(0xFFFFD7F1)
+
+val ErrorDark = Color(0xFFFFB4AB)
+val OnErrorDark = Color(0xFF690005)
+val ErrorContainerDark = Color(0xFF93000A)
+val OnErrorContainerDark = Color(0xFFFFDAD6)
+
+val BackgroundDark = Color(0xFF1B1B1F)
+val OnBackgroundDark = Color(0xFFE4E1E6)
+val SurfaceDark = Color(0xFF1B1B1F)
+val OnSurfaceDark = Color(0xFFE4E1E6)
+val SurfaceVariantDark = Color(0xFF46464F)
+val OnSurfaceVariantDark = Color(0xFFC7C5D0)
+val OutlineDark = Color(0xFF91909A)
