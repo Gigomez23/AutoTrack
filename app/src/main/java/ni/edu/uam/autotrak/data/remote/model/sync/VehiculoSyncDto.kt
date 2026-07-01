@@ -14,6 +14,7 @@ data class VehiculoSyncDto(
     val apodo: String? = "",
     val imagenes: List<String>? = emptyList(),
     val usuario: Usuario? = null,
+    val usuarioId: Long? = null,
     val fechaCreacion: LocalDateTime? = null,
     val fechaActualizacion: LocalDateTime? = null,
     val eliminado: Boolean = false

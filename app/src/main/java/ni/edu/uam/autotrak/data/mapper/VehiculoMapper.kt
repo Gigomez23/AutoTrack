@@ -17,7 +17,7 @@ fun Vehiculo.toRoomEntity(): VehiculoEntity {
         estado = estado.orEmpty(),
         apodo = apodo.orEmpty(),
         imagenes = imagenes.orEmpty(),
-        usuarioId = usuario?.id,
+        usuarioId = usuario?.id ?: usuarioId,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
     )
@@ -34,7 +34,7 @@ fun VehiculoSyncDto.toRoomEntity(): VehiculoEntity {
         estado = estado.orEmpty(),
         apodo = apodo.orEmpty(),
         imagenes = imagenes.orEmpty(),
-        usuarioId = usuario?.id,
+        usuarioId = usuario?.id ?: usuarioId,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion,
         syncState = SyncState.SYNCED
@@ -53,6 +53,7 @@ fun VehiculoEntity.toRemoteModel(): Vehiculo {
         apodo = apodo,
         imagenes = imagenes,
         usuario = usuarioId?.let { Usuario(id = it) },
+        usuarioId = usuarioId,
         syncState = syncState,
         fechaCreacion = fechaCreacion,
         fechaActualizacion = fechaActualizacion
@@ -60,5 +61,12 @@ fun VehiculoEntity.toRemoteModel(): Vehiculo {
 }
 
 fun Vehiculo.toCreateRequestModel(): Vehiculo {
-    return copy(id = null)
+    return copy(
+        id = null,
+        usuario = null,
+        usuarioId = usuarioId ?: usuario?.id,
+        fechaCreacion = null,
+        fechaActualizacion = null,
+        apodo = null
+    )
 }
