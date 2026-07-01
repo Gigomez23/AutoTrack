@@ -9,6 +9,7 @@ import ni.edu.uam.autotrak.data.local.dao.MultaDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroProblemaDao
+import ni.edu.uam.autotrak.data.local.dao.ServicioMantenimientoDao
 import ni.edu.uam.autotrak.data.local.dao.SyncMetadataDao
 import ni.edu.uam.autotrak.data.local.dao.UsuarioDao
 import ni.edu.uam.autotrak.data.local.dao.VehiculoDao
@@ -25,6 +26,7 @@ import ni.edu.uam.autotrak.data.remote.api.MultaApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
+import ni.edu.uam.autotrak.data.remote.api.ServicioMantenimientoApi
 import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
 import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE
@@ -33,6 +35,7 @@ import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_LICENCIA
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_DOCUMENTO
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_MULTA
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_PROBLEMA
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_SERVICIO_MANTENIMIENTO
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_VEHICULO
 
@@ -56,7 +59,9 @@ class SyncManager(
     private val documentoVehiculoApi: DocumentoVehiculoApi,
     private val documentoVehiculoDao: DocumentoVehiculoDao,
     private val documentoApi: DocumentoApi,
-    private val documentoDao: DocumentoDao
+    private val documentoDao: DocumentoDao,
+    private val maintenanceApi: ServicioMantenimientoApi,
+    private val maintenanceDao: ServicioMantenimientoDao
 ) {
 
     suspend fun syncAll() {
@@ -98,6 +103,10 @@ class SyncManager(
                 pushDocumentos()
                 pullDocumentos()
             }
+            ENTITY_SERVICIO_MANTENIMIENTO -> {
+                pushMaintenance()
+                pullMaintenance()
+            }
         }
     }
 
@@ -120,6 +129,7 @@ class SyncManager(
         runSyncStep { pushMulta() }
         runSyncStep { pushDocumentoVehiculo() }
         runSyncStep { pushDocumentos() }
+        runSyncStep { pushMaintenance() }
     }
 
     private suspend fun pullRemoteChanges() {
@@ -132,6 +142,7 @@ class SyncManager(
         runSyncStep { pullMulta() }
         runSyncStep { pullDocumentoVehiculo() }
         runSyncStep { pullDocumentos() }
+        runSyncStep { pullMaintenance() }
     }
 
     private suspend inline fun runSyncStep(crossinline block: suspend () -> Unit) {
@@ -675,6 +686,65 @@ class SyncManager(
         }
     }
 
+    // --- MANTENIMIENTO ---
+    suspend fun pushMaintenance() {
+        maintenanceDao.getPendingSync().forEach { local ->
+            try {
+                val remote = when (local.syncState) {
+                    SyncState.PENDING_CREATE -> maintenanceApi.createServicioMantenimiento(local.toRemoteModel().copy(id = null))
+                    SyncState.PENDING_UPDATE -> local.serverId?.let { maintenanceApi.updateServicioMantenimiento(it, local.toRemoteModel()) }
+                    SyncState.PENDING_DELETE -> {
+                        local.serverId?.let { maintenanceApi.deleteServicioMantenimiento(it) }
+                        database.withTransaction { maintenanceDao.delete(local) }
+                        null
+                    }
+                    else -> null
+                }
+                remote?.let {
+                    database.withTransaction {
+                        maintenanceDao.update(
+                            it.toRoomEntity().copy(
+                                localId = local.localId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push maintenance ${local.localId}", e)
+            }
+        }
+    }
 
-
+    suspend fun pullMaintenance() {
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_SERVICIO_MANTENIMIENTO)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        try {
+            val remoteList = maintenanceApi.getUpdatedAfter(lastSync)
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { maintenanceDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { maintenanceDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity().copy(
+                            localId = existing?.localId ?: 0,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            maintenanceDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                maintenanceDao.update(next)
+                            }
+                        }
+                    }
+                }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_SERVICIO_MANTENIMIENTO, System.currentTimeMillis()))
+            }
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull maintenance records", e)
+        }
+    }
 }

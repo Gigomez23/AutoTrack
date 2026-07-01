@@ -63,7 +63,9 @@ fun AppNavigation(sessionManager: SessionManager, database: AppDatabase, serverS
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento_vehiculo,
             database.documentoVehiculoDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento,
-            database.documentoDao()
+            database.documentoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_servicio_mantenimiento,
+            database.servicioMantenimientoDao()
         )
     }
 

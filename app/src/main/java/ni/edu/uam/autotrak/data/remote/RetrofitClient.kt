@@ -7,6 +7,7 @@ import ni.edu.uam.autotrak.data.remote.api.MultaApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
+import ni.edu.uam.autotrak.data.remote.api.ServicioMantenimientoApi
 import ni.edu.uam.autotrak.data.remote.api.UsuarioApi
 import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
 import com.google.gson.GsonBuilder
@@ -104,5 +105,9 @@ object RetrofitClient {
 
     val api_multa: MultaApi by lazy {
         retrofit.create(MultaApi::class.java)
+    }
+
+    val api_servicio_mantenimiento: ServicioMantenimientoApi by lazy {
+        retrofit.create(ServicioMantenimientoApi::class.java)
     }
 }

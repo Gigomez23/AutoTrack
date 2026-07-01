@@ -12,4 +12,5 @@ object SyncConstants {
     const val ENTITY_REGISTRO = "Registro"
     const val ENTITY_REGISTRO_COMBUSTIBLE = "RegistroCombustible"
     const val ENTITY_REGISTRO_PROBLEMA = "RegistroProblema"
+    const val ENTITY_SERVICIO_MANTENIMIENTO = "ServicioMantenimiento"
 }

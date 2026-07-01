@@ -37,6 +37,7 @@ fun VehiculoDetalleScreen(
     isOffline: Boolean,
     onEdit: (Long) -> Unit,
     onNavigateToDocuments: (Long) -> Unit,
+    onNavigateToMaintenance: (Long) -> Unit,
     onBack: () -> Unit,
 ) {
     val detailState by viewModel.detailUiState.collectAsState()
@@ -84,7 +85,8 @@ fun VehiculoDetalleScreen(
                         costosMensualesData = costosMensualesData,
                         avgEfficiency = avgEfficiency,
                         avgMonthlyCost = avgMonthlyCost,
-                        onNavigateToDocuments = { onNavigateToDocuments(vehiculoId) }
+                        onNavigateToDocuments = { onNavigateToDocuments(vehiculoId) },
+                        onNavigateToMaintenance = { onNavigateToMaintenance(vehiculoId) }
                     )
                 }
             }
@@ -99,7 +101,8 @@ fun VehiculoDetalleContent(
     costosMensualesData: List<EfficiencyPoint>,
     avgEfficiency: Double,
     avgMonthlyCost: Double,
-    onNavigateToDocuments: () -> Unit
+    onNavigateToDocuments: () -> Unit,
+    onNavigateToMaintenance: () -> Unit
 ) {
     val lastSyncText = remember(vehiculo.fechaActualizacion) {
         vehiculo.fechaActualizacion?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) ?: "Desconocida"
@@ -183,6 +186,16 @@ fun VehiculoDetalleContent(
                     Icon(Icons.Default.Folder, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Ver Documentos del Vehículo")
+                }
+
+                OutlinedButton(
+                    onClick = onNavigateToMaintenance,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Build, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ver Mantenimiento")
                 }
             }
         }

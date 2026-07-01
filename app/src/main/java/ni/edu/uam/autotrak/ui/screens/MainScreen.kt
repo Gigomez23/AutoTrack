@@ -1,57 +1,81 @@
 package ni.edu.uam.autotrak.ui.screens
 
-import androidx.compose.foundation.layout.*
+import android.net.Uri
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.navigation.NavType
 import kotlinx.coroutines.launch
+import ni.edu.uam.autotrak.data.local.db.AppDatabase
+import ni.edu.uam.autotrak.data.remote.RetrofitClient
+import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
 import ni.edu.uam.autotrak.data.remote.SessionManager
+import ni.edu.uam.autotrak.data.remote.model.Licencia
+import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
+import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
+import ni.edu.uam.autotrak.data.repository.DocumentoVehiculoRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.LicenciaRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.MultaRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.RegistroCombustibleRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.RegistroProblemaRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.ServicioMantenimientoRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl
+import ni.edu.uam.autotrak.data.repository.VehiculoRepositoryImpl
+import ni.edu.uam.autotrak.data.sync.SyncManager
 import ni.edu.uam.autotrak.ui.Screen
+import ni.edu.uam.autotrak.ui.components.ServerStatusIndicator
+import ni.edu.uam.autotrak.util.NetworkConnectivityObserver
+import ni.edu.uam.autotrak.viewmodel.DocumentoVehiculoViewModel
+import ni.edu.uam.autotrak.viewmodel.HomeViewModel
+import ni.edu.uam.autotrak.viewmodel.LicenciaViewModel
+import ni.edu.uam.autotrak.viewmodel.MantenimientoViewModel
+import ni.edu.uam.autotrak.viewmodel.MultasViewModel
 import ni.edu.uam.autotrak.viewmodel.RegistroCombustibleViewModel
 import ni.edu.uam.autotrak.viewmodel.RegistroProblemaViewModel
 import ni.edu.uam.autotrak.viewmodel.UserViewModel
 import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
-import ni.edu.uam.autotrak.viewmodel.LicenciaViewModel
-import ni.edu.uam.autotrak.viewmodel.MultasViewModel
-import ni.edu.uam.autotrak.viewmodel.DocumentoVehiculoViewModel
-import ni.edu.uam.autotrak.ui.screens.VehiculoDetalleScreen
-import ni.edu.uam.autotrak.ui.screens.LicenciaScreen
-import ni.edu.uam.autotrak.ui.screens.LicenciaFormScreen
-import ni.edu.uam.autotrak.ui.screens.MultasScreen
-import ni.edu.uam.autotrak.ui.screens.MultaFormScreen
-import ni.edu.uam.autotrak.ui.screens.DocumentoVehiculoScreen
-import ni.edu.uam.autotrak.ui.screens.DocumentoVehiculoFormScreen
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import ni.edu.uam.autotrak.data.remote.RetrofitClient
-import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
-import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
-import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
-import ni.edu.uam.autotrak.data.remote.model.Licencia
-import ni.edu.uam.autotrak.ui.components.ServerStatusIndicator
-import com.google.gson.Gson
-import android.net.Uri
-
-import ni.edu.uam.autotrak.data.sync.SyncManager
-import ni.edu.uam.autotrak.viewmodel.HomeViewModel
-
-import androidx.compose.ui.platform.LocalContext
-import ni.edu.uam.autotrak.data.local.db.AppDatabase
-import ni.edu.uam.autotrak.data.repository.*
-import ni.edu.uam.autotrak.util.NetworkConnectivityObserver
 
 data class MenuItem(val title: String, val route: String, val icon: ImageVector)
 
@@ -91,7 +115,9 @@ fun MainScreen(
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento_vehiculo,
             database.documentoVehiculoDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento,
-            database.documentoDao()
+            database.documentoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_servicio_mantenimiento,
+            database.servicioMantenimientoDao()
         )
     }
 
@@ -102,6 +128,7 @@ fun MainScreen(
     val licenciaRepository = remember { LicenciaRepositoryImpl(database, database.licenciaDao(), { syncManager }) }
     val multaRepository = remember { MultaRepositoryImpl(database, database.multaDao(), { syncManager }) }
     val documentoVehiculoRepository = remember { DocumentoVehiculoRepositoryImpl(database, database.documentoVehiculoDao(), { syncManager }) }
+    val maintenanceRepository = remember { ServicioMantenimientoRepositoryImpl(database, database.servicioMantenimientoDao(), { syncManager }) }
 
     // App launch sync
     LaunchedEffect(Unit) {
@@ -126,6 +153,7 @@ fun MainScreen(
                 modelClass.isAssignableFrom(LicenciaViewModel::class.java) -> LicenciaViewModel(sessionManager, licenciaRepository) as T
                 modelClass.isAssignableFrom(MultasViewModel::class.java) -> MultasViewModel(sessionManager, multaRepository) as T
                 modelClass.isAssignableFrom(DocumentoVehiculoViewModel::class.java) -> DocumentoVehiculoViewModel(documentoVehiculoRepository) as T
+                modelClass.isAssignableFrom(MantenimientoViewModel::class.java) -> MantenimientoViewModel(maintenanceRepository) as T
                 else -> throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
@@ -139,6 +167,7 @@ fun MainScreen(
     val licenciaViewModel: LicenciaViewModel = viewModel(factory = factory)
     val multasViewModel: MultasViewModel = viewModel(factory = factory)
     val docVehiculoViewModel: DocumentoVehiculoViewModel = viewModel(factory = factory)
+    val maintenanceViewModel: MantenimientoViewModel = viewModel(factory = factory)
 
     val menuItems = listOf(
         MenuItem("Inicio", Screen.Home.route, Icons.Default.Home),
@@ -252,6 +281,9 @@ fun MainScreen(
                         },
                         onNavigateToDocuments = { vehicleId ->
                             navController.navigate(Screen.VehicleDocuments.createRoute(vehicleId))
+                        },
+                        onNavigateToMaintenance = { vehicleId ->
+                            navController.navigate(Screen.Maintenance.createRoute(vehicleId))
                         },
                         onBack = { navController.popBackStack() }
                     )
@@ -520,6 +552,52 @@ fun MainScreen(
                         viewModel = docVehiculoViewModel,
                         vehiculoId = vehiculoId,
                         documentoId = id,
+                        onSuccess = { navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    Screen.Maintenance.route,
+                    arguments = listOf(navArgument("vehiculoId") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
+                    LaunchedEffect(vehiculoId) {
+                        maintenanceViewModel.cargarMantenimientos(vehiculoId)
+                    }
+                    MantenimientoListScreen(
+                        viewModel = maintenanceViewModel,
+                        onNavigateToForm = { id -> 
+                            if (id == null) navController.navigate("maintenance_form/$vehiculoId")
+                            else navController.navigate("maintenance_edit/$id/$vehiculoId")
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    "maintenance_form/{vehiculoId}",
+                    arguments = listOf(navArgument("vehiculoId") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val vehiculoId = backStackEntry.arguments?.getLong("vehiculoId") ?: 0L
+                    MantenimientoFormScreen(
+                        viewModel = maintenanceViewModel,
+                        onSuccess = { navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    "maintenance_edit/{id}/{vehiculoId}",
+                    arguments = listOf(
+                        navArgument("id") { type = NavType.LongType },
+                        navArgument("vehiculoId") { type = NavType.LongType }
+                    )
+                ) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                    MantenimientoFormScreen(
+                        viewModel = maintenanceViewModel,
+                        mantenimientoId = id,
                         onSuccess = { navController.popBackStack() },
                         onBack = { navController.popBackStack() }
                     )
