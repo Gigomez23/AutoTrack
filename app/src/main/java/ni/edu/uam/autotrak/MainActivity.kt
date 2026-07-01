@@ -58,6 +58,8 @@ fun AppNavigation(sessionManager: SessionManager, database: AppDatabase, serverS
             database.registroDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_licencia,
             database.licenciaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_multa,
+            database.multaDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento,
             database.documentoDao()
         )

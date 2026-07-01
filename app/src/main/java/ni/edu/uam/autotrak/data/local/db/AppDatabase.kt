@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import ni.edu.uam.autotrak.data.local.dao.DocumentoDao
 import ni.edu.uam.autotrak.data.local.dao.LicenciaDao
+import ni.edu.uam.autotrak.data.local.dao.MultaDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroProblemaDao
@@ -15,6 +16,7 @@ import ni.edu.uam.autotrak.data.local.dao.UsuarioDao
 import ni.edu.uam.autotrak.data.local.dao.VehiculoDao
 import ni.edu.uam.autotrak.data.local.model.DocumentoEntity
 import ni.edu.uam.autotrak.data.local.model.LicenciaEntity
+import ni.edu.uam.autotrak.data.local.model.MultaEntity
 import ni.edu.uam.autotrak.data.local.model.RegistroCombustibleEntity
 import ni.edu.uam.autotrak.data.local.model.RegistroEntity
 import ni.edu.uam.autotrak.data.local.model.RegistroProblemaEntity
@@ -28,13 +30,14 @@ import ni.edu.uam.autotrak.data.sync.SyncConstants
         UsuarioEntity::class,
         VehiculoEntity::class,
         LicenciaEntity::class,
+        MultaEntity::class,
         RegistroEntity::class,
         RegistroCombustibleEntity::class,
         RegistroProblemaEntity::class,
         DocumentoEntity::class,
         SyncMetadataEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -46,6 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun registroProblemaDao(): RegistroProblemaDao
     abstract fun documentoDao(): DocumentoDao
     abstract fun licenciaDao(): LicenciaDao
+    abstract fun multaDao(): MultaDao
     abstract fun syncMetadataDao(): SyncMetadataDao
 
     companion object {

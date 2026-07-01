@@ -24,9 +24,12 @@ import ni.edu.uam.autotrak.viewmodel.RegistroProblemaViewModel
 import ni.edu.uam.autotrak.viewmodel.UserViewModel
 import ni.edu.uam.autotrak.viewmodel.VehiculoViewModel
 import ni.edu.uam.autotrak.viewmodel.LicenciaViewModel
+import ni.edu.uam.autotrak.viewmodel.MultasViewModel
 import ni.edu.uam.autotrak.ui.screens.VehiculoDetalleScreen
 import ni.edu.uam.autotrak.ui.screens.LicenciaScreen
 import ni.edu.uam.autotrak.ui.screens.LicenciaFormScreen
+import ni.edu.uam.autotrak.ui.screens.MultasScreen
+import ni.edu.uam.autotrak.ui.screens.MultaFormScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import ni.edu.uam.autotrak.data.remote.RetrofitClient
@@ -79,6 +82,8 @@ fun MainScreen(
             database.registroDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_licencia,
             database.licenciaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_multa,
+            database.multaDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento,
             database.documentoDao()
         )
@@ -89,6 +94,7 @@ fun MainScreen(
     val fuelRepository = remember { RegistroCombustibleRepositoryImpl(database, database.registroCombustibleDao(), { syncManager }) }
     val problemaRepository = remember { RegistroProblemaRepositoryImpl(database, database.registroProblemaDao(), { syncManager }) }
     val licenciaRepository = remember { LicenciaRepositoryImpl(database, database.licenciaDao(), { syncManager }) }
+    val multaRepository = remember { MultaRepositoryImpl(database, database.multaDao(), { syncManager }) }
 
     // App launch sync
     LaunchedEffect(Unit) {
@@ -109,8 +115,9 @@ fun MainScreen(
                 modelClass.isAssignableFrom(UserViewModel::class.java) -> UserViewModel(sessionManager, usuarioRepository) as T
                 modelClass.isAssignableFrom(RegistroCombustibleViewModel::class.java) -> RegistroCombustibleViewModel(sessionManager, fuelRepository, vehiculoRepository) as T
                 modelClass.isAssignableFrom(RegistroProblemaViewModel::class.java) -> RegistroProblemaViewModel(sessionManager, problemaRepository, vehiculoRepository) as T
-                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository) as T
+                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository, multaRepository) as T
                 modelClass.isAssignableFrom(LicenciaViewModel::class.java) -> LicenciaViewModel(sessionManager, licenciaRepository) as T
+                modelClass.isAssignableFrom(MultasViewModel::class.java) -> MultasViewModel(sessionManager, multaRepository) as T
                 else -> throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
@@ -122,12 +129,14 @@ fun MainScreen(
     val issuesViewModel: RegistroProblemaViewModel = viewModel(factory = factory)
     val homeViewModel: HomeViewModel = viewModel(factory = factory)
     val licenciaViewModel: LicenciaViewModel = viewModel(factory = factory)
+    val multasViewModel: MultasViewModel = viewModel(factory = factory)
 
     val menuItems = listOf(
         MenuItem("Inicio", Screen.Home.route, Icons.Default.Home),
         MenuItem("Vehículos", Screen.Vehicles.route, Icons.Default.DirectionsCar),
         MenuItem("Combustible", Screen.FuelLogs.route, Icons.Default.LocalGasStation),
         MenuItem("Problemas", Screen.Issues.route, Icons.Default.ReportProblem),
+        MenuItem("Mis Multas", Screen.Multas.route, Icons.Default.ReceiptLong),
         MenuItem("Mi Licencia", Screen.Licencia.route, Icons.Default.Badge),
         MenuItem("Perfil de Usuario", Screen.UserManagement.route, Icons.Default.Person)
     )
@@ -202,6 +211,7 @@ fun MainScreen(
                         onNavigateToVehicles = { navController.navigate(Screen.Vehicles.route) },
                         onNavigateToFuel = { navController.navigate(Screen.FuelLogs.route) },
                         onNavigateToIssues = { navController.navigate(Screen.Issues.route) },
+                        onNavigateToMultas = { navController.navigate(Screen.Multas.route) },
                         onVehicleClick = { id -> navController.navigate(Screen.VehicleDetail.createRoute(id)) }
                     )
                 }
@@ -400,6 +410,36 @@ fun MainScreen(
                                 navController.navigate("licencia_edit/$encodedJson")
                             }
                         }
+                    )
+                }
+
+                composable(Screen.Multas.route) {
+                    MultasScreen(
+                        viewModel = multasViewModel,
+                        onNavigateToCreateMulta = { navController.navigate("multa_form") },
+                        onNavigateToEditMulta = { id -> navController.navigate("multa_edit/$id") },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("multa_form") {
+                    MultaFormScreen(
+                        viewModel = multasViewModel,
+                        onSuccess = { navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable(
+                    "multa_edit/{id}",
+                    arguments = listOf(navArgument("id") { type = NavType.LongType })
+                ) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                    MultaFormScreen(
+                        viewModel = multasViewModel,
+                        multaId = id,
+                        onSuccess = { navController.popBackStack() },
+                        onBack = { navController.popBackStack() }
                     )
                 }
 

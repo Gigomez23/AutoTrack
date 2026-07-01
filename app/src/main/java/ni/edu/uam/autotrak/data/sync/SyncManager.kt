@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.room.withTransaction
 import ni.edu.uam.autotrak.data.local.dao.DocumentoDao
 import ni.edu.uam.autotrak.data.local.dao.LicenciaDao
+import ni.edu.uam.autotrak.data.local.dao.MultaDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroProblemaDao
@@ -18,6 +19,7 @@ import ni.edu.uam.autotrak.data.mapper.toRoomEntity
 import ni.edu.uam.autotrak.data.mapper.toSyncDto
 import ni.edu.uam.autotrak.data.remote.api.DocumentoApi
 import ni.edu.uam.autotrak.data.remote.api.LicenciaApi
+import ni.edu.uam.autotrak.data.remote.api.MultaApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroCombustibleApi
 import ni.edu.uam.autotrak.data.remote.api.RegistroProblemaApi
@@ -26,6 +28,7 @@ import ni.edu.uam.autotrak.data.remote.api.VehiculoApi
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_COMBUSTIBLE
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_LICENCIA
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_DOCUMENTO
+import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_MULTA
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_REGISTRO_PROBLEMA
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_USUARIO
 import ni.edu.uam.autotrak.data.sync.SyncConstants.ENTITY_VEHICULO
@@ -45,6 +48,8 @@ class SyncManager(
     private val registroDao: RegistroDao,
     private val licenciaApi: LicenciaApi,
     private val licenciaDao: LicenciaDao,
+    private val multaApi: MultaApi,
+    private val multaDao: MultaDao,
     private val documentoApi: DocumentoApi,
     private val documentoDao: DocumentoDao
 ) {
@@ -76,6 +81,10 @@ class SyncManager(
                 pushLicencia()
                 pullLicencia()
             }
+            ENTITY_MULTA -> {
+                pushMulta()
+                pullMulta()
+            }
             ENTITY_DOCUMENTO -> {
                 pushDocumentos()
                 pullDocumentos()
@@ -99,6 +108,7 @@ class SyncManager(
         runSyncStep { pushProblems() }
         runSyncStep { pushRegistros() }
         runSyncStep { pushLicencia() }
+        runSyncStep { pushMulta() }
         runSyncStep { pushDocumentos() }
     }
 
@@ -109,6 +119,7 @@ class SyncManager(
         runSyncStep { pullProblems() }
         runSyncStep { pullRegistros() }
         runSyncStep { pullLicencia() }
+        runSyncStep { pullMulta() }
         runSyncStep { pullDocumentos() }
     }
 
@@ -461,6 +472,69 @@ class SyncManager(
             }
         } catch (e: Exception) {
             Log.e("SyncManager", "Failed to pull licencias", e)
+        }
+    }
+
+    // --- MULTAS ---
+    suspend fun pushMulta() {
+        multaDao.getPendingSync().forEach { local ->
+            try {
+                val remote = when (local.syncState) {
+                    SyncState.PENDING_CREATE -> multaApi.createMulta(local.toRemoteModel().copy(id = null))
+                    SyncState.PENDING_UPDATE -> local.serverId?.let { multaApi.updateMulta(it, local.toRemoteModel()) }
+                    SyncState.PENDING_DELETE -> {
+                        local.serverId?.let { multaApi.deleteMulta(it) }
+                        database.withTransaction { multaDao.delete(local) }
+                        null
+                    }
+                    else -> null
+                }
+                remote?.let {
+                    database.withTransaction {
+                        multaDao.update(
+                            it.toRoomEntity().copy(
+                                localId = local.localId,
+                                usuarioId = it.usuarioId ?: local.usuarioId,
+                                syncState = SyncState.SYNCED
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SyncManager", "Failed to push multa ${local.localId}", e)
+            }
+        }
+    }
+
+    suspend fun pullMulta() {
+        val lastSync = syncMetadataDao.getByEntityName(ENTITY_MULTA)?.lastSuccessfulSyncServerTimeMillis ?: 0L
+        try {
+            val remoteList = multaApi.getUpdatedAfter(lastSync)
+            database.withTransaction {
+                remoteList.forEach { remote ->
+                    val existing = remote.id?.let { multaDao.getByServerId(it) }
+                    if (remote.eliminado) {
+                        existing?.let { multaDao.delete(it) }
+                    } else {
+                        val next = remote.toRoomEntity(remote.usuarioId ?: existing?.usuarioId).copy(
+                            localId = existing?.localId ?: 0,
+                            syncState = SyncState.SYNCED
+                        )
+                        if (existing == null) {
+                            multaDao.insert(next)
+                        } else if (existing.syncState == SyncState.SYNCED) {
+                            if (remote.fechaActualizacion == null || existing.fechaActualizacion == null ||
+                                remote.fechaActualizacion.isAfter(existing.fechaActualizacion)
+                            ) {
+                                multaDao.update(next)
+                            }
+                        }
+                    }
+                }
+                syncMetadataDao.upsert(SyncMetadataEntity(ENTITY_MULTA, System.currentTimeMillis()))
+            }
+        } catch (e: Exception) {
+            Log.e("SyncManager", "Failed to pull multas", e)
         }
     }
 
