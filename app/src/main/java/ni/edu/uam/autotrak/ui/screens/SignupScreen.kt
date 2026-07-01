@@ -2,17 +2,23 @@ package ni.edu.uam.autotrak.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ni.edu.uam.autotrak.data.remote.ServerStatusMonitor
 import ni.edu.uam.autotrak.data.remote.model.Usuario
+import ni.edu.uam.autotrak.ui.components.ProfileTextField
 import ni.edu.uam.autotrak.ui.components.ServerStatusIndicator
 import ni.edu.uam.autotrak.viewmodel.AuthViewModel
 import ni.edu.uam.autotrak.viewmodel.UiState
@@ -32,21 +38,27 @@ fun SignupScreen(
     var password by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
     var pais by remember { mutableStateOf("") }
+    
+    var passwordVisible by remember { mutableStateOf(false) }
 
     val signupState by viewModel.signupState.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Account") },
+                title = { Text("Crear Cuenta", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar")
                     }
                 },
                 actions = {
                     ServerStatusIndicator(monitor = serverStatusMonitor)
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { padding ->
@@ -54,66 +66,89 @@ fun SignupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = nombres,
-                onValueChange = { nombres = it },
-                label = { Text("First Name") },
-                modifier = Modifier.fillMaxWidth()
+            Icon(
+                Icons.Default.AccountCircle,
+                contentDescription = null,
+                modifier = Modifier.size(80.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
+            
+            Text(
+                text = "Regístrate para comenzar",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = apellidos,
-                onValueChange = { apellidos = it },
-                label = { Text("Last Name") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Email") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
+            ProfileTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Username") },
-                modifier = Modifier.fillMaxWidth()
+                label = "Nombre de usuario",
+                icon = Icons.Default.AccountCircle
             )
-            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProfileTextField(
+                    value = nombres,
+                    onValueChange = { nombres = it },
+                    label = "Nombres",
+                    icon = Icons.Default.Badge,
+                    modifier = Modifier.weight(1f)
+                )
+                ProfileTextField(
+                    value = apellidos,
+                    onValueChange = { apellidos = it },
+                    label = "Apellidos",
+                    icon = Icons.Default.Badge,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            ProfileTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Correo Electrónico",
+                icon = Icons.Default.Email
+            )
+
+            ProfileTextField(
+                value = telefono,
+                onValueChange = { telefono = it },
+                label = "Número de Teléfono",
+                icon = Icons.Default.Phone
+            )
+
+            ProfileTextField(
+                value = pais,
+                onValueChange = { pais = it },
+                label = "País",
+                icon = Icons.Default.Public
+            )
 
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Contraseña") },
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    val image = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(imageVector = image, contentDescription = if (passwordVisible) "Ocultar" else "Mostrar")
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp)
             )
-            Spacer(modifier = Modifier.height(8.dp))
 
-            OutlinedTextField(
-                value = telefono,
-                onValueChange = { telefono = it },
-                label = { Text("Phone Number") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = pais,
-                onValueChange = { pais = it },
-                label = { Text("Country") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
@@ -124,27 +159,37 @@ fun SignupScreen(
                             email = email,
                             username = username,
                             password = password,
-                            nueroTel = telefono,
+                            numeroTel = telefono,
                             pais = pais
                         )
                     )
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = signupState !is UiState.Loading
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                enabled = signupState !is UiState.Loading,
+                shape = RoundedCornerShape(16.dp)
             ) {
                 if (signupState is UiState.Loading) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
                 } else {
-                    Text("Sign Up")
+                    Text("Registrarse", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
             if (signupState is UiState.Error) {
-                Text(
-                    text = (signupState as UiState.Error).message,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = (signupState as UiState.Error).message,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             LaunchedEffect(signupState) {
@@ -152,6 +197,8 @@ fun SignupScreen(
                     onSignupSuccess()
                 }
             }
+            
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

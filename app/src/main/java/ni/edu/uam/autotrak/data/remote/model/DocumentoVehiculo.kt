@@ -1,10 +1,17 @@
 package ni.edu.uam.autotrak.data.remote.model
 
+import ni.edu.uam.autotrak.data.sync.SyncState
+import java.time.LocalDate
+import java.time.LocalDateTime
+
 data class DocumentoVehiculo(
-    override val id: Long? = null,
-    override val fechaEmitida: String? = null,
-    override val fechaVencimiento: String? = null,
-//    override val imagen: String = "",
+    val id: Long? = null,
+    val fechaCreacion: LocalDateTime? = null,
+    val fechaActualizacion: LocalDateTime? = null,
+    val fechaVencimiento: LocalDate? = null,
+    val fechaEmitida: LocalDate? = null,
+    val imagen: String? = "",
     val nombre: String? = "",
-    val vehiculo: Vehiculo? = null
-) : Documento
+    val vehiculoId: Long? = null,
+    val syncState: SyncState = SyncState.SYNCED
+)

@@ -10,12 +10,14 @@ import kotlinx.coroutines.launch
 import ni.edu.uam.autotrak.data.remote.SessionManager
 import ni.edu.uam.autotrak.data.remote.model.RegistroCombustible
 import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
+import ni.edu.uam.autotrak.data.remote.model.Multa
 import ni.edu.uam.autotrak.data.remote.model.Usuario
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
 import ni.edu.uam.autotrak.data.repository.UsuarioRepository
 import ni.edu.uam.autotrak.data.repository.VehiculoRepository
 import ni.edu.uam.autotrak.data.repository.RegistroCombustibleRepository
 import ni.edu.uam.autotrak.data.repository.RegistroProblemaRepository
+import ni.edu.uam.autotrak.data.repository.MultaRepository
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
@@ -25,7 +27,8 @@ class HomeViewModel(
     private val usuarioRepository: UsuarioRepository,
     private val vehiculoRepository: VehiculoRepository,
     private val fuelRepository: RegistroCombustibleRepository,
-    private val problemaRepository: RegistroProblemaRepository
+    private val problemaRepository: RegistroProblemaRepository,
+    private val multaRepository: MultaRepository
 ) : ViewModel() {
 
     private val userId = sessionManager.getUserId()
@@ -38,6 +41,8 @@ class HomeViewModel(
         val openIssues: Int = 0,
         val fleetEfficiency: Float = 0f,
         val totalFuelRecords: Int = 0,
+        val pendingFines: Int = 0,
+        val totalFinesAmount: Double = 0.0,
         val recentActivity: List<ActivityItem> = emptyList(),
         val insights: List<String> = emptyList(),
         val vehicleStats: Map<Long, VehicleMetrics> = emptyMap(),
@@ -69,19 +74,22 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = if (userId != -1L) {
         val userFlow = usuarioRepository.observeUsuario(userId)
         val vehiclesFlow = vehiculoRepository.observeVehiculos(userId)
+        val multasFlow = multaRepository.observeByUsuarioId(userId)
         
         combine(
             userFlow,
             vehiclesFlow,
+            multasFlow,
             _refreshing
-        ) { user, vehicles, refreshing ->
-            HomeUiParams(user, vehicles, refreshing)
+        ) { user, vehicles, multas, refreshing ->
+            HomeUiParams(user, vehicles, multas, refreshing)
         }.flatMapLatest { params ->
             val user = params.user
             val vehicles = params.vehicles
+            val multas = params.multas
             val refreshing = params.refreshing
             
-            if (vehicles.isEmpty()) {
+            if (vehicles.isEmpty() && multas.isEmpty()) {
                 flowOf(HomeUiState(isLoading = refreshing, user = user, vehicles = emptyList()))
             } else {
                 val issueFlows = vehicles.map { v -> 
@@ -93,11 +101,15 @@ class HomeViewModel(
                     fuelRepository.observeByVehiculoId(vid).map { vid to it } 
                 }
 
-                combine(
-                    combine(issueFlows) { it.toMap() },
-                    combine(fuelFlows) { it.toMap() }
-                ) { issuesMap, fuelMap ->
-                    calculateHomeState(user, vehicles, issuesMap, fuelMap, refreshing)
+                if (issueFlows.isEmpty() && fuelFlows.isEmpty()) {
+                     flowOf(calculateHomeState(user, vehicles, emptyMap(), emptyMap(), multas, refreshing))
+                } else {
+                    combine(
+                        if (issueFlows.isNotEmpty()) combine(issueFlows) { it.toMap() } else flowOf(emptyMap()),
+                        if (fuelFlows.isNotEmpty()) combine(fuelFlows) { it.toMap() } else flowOf(emptyMap())
+                    ) { issuesMap, fuelMap ->
+                        calculateHomeState(user, vehicles, issuesMap, fuelMap, multas, refreshing)
+                    }
                 }
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, HomeUiState(isLoading = true))
@@ -108,6 +120,7 @@ class HomeViewModel(
     private data class HomeUiParams(
         val user: Usuario?,
         val vehicles: List<Vehiculo>,
+        val multas: List<Multa>,
         val refreshing: Boolean
     )
 
@@ -121,11 +134,9 @@ class HomeViewModel(
         viewModelScope.launch {
             _refreshing.value = true
             try {
-                // Trigger a full sync (push & pull) for everything relevant to the dashboard
-                // Since we updated repositories to use SyncManager, these calls will now be correct.
-                
                 try { usuarioRepository.refreshUsuario(userId) } catch (e: Exception) {}
                 try { vehiculoRepository.refreshVehiculos(userId) } catch (e: Exception) {}
+                try { multaRepository.refreshByUsuarioId(userId) } catch (e: Exception) {}
                 
                 val vehicles = try {
                     vehiculoRepository.observeVehiculos(userId).first()
@@ -158,6 +169,7 @@ class HomeViewModel(
         vehicles: List<Vehiculo>,
         issuesMap: Map<Long, List<RegistroProblema>>,
         fuelMap: Map<Long, List<RegistroCombustible>>,
+        multas: List<Multa>,
         refreshing: Boolean
     ): HomeUiState {
         val vehicleMetricsMap = mutableMapOf<Long, VehicleMetrics>()
@@ -194,11 +206,6 @@ class HomeViewModel(
             var costPerKm = 0.0
             if (sortedFuel.size >= 2) {
                 val distance = sortedFuel.last().odometro - sortedFuel.first().odometro
-                
-                // For cost per km, we should ideally use the cost of fuel used for that distance
-                // Here we sum all costs excluding the first record (since that's the starting point for distance)
-                // but usually distance between records i and i+1 is powered by fuel at record i.
-                // To keep it simple and consistent with efficiency calculation:
                 val relevantCost = sortedFuel.dropLast(1).sumOf { it.cantidadPagado?.toDouble() ?: 0.0 }
                 
                 if (distance > 0) {
@@ -233,6 +240,15 @@ class HomeViewModel(
                 timestamp = it.fechaRegistro?.atStartOfDay() ?: LocalDateTime.now()
             ))
         }
+        multas.forEach {
+             activityItems.add(ActivityItem(
+                id = "multa_${it.id}",
+                type = ActivityType.ISSUE,
+                title = "Nueva multa",
+                subtitle = it.descripcion ?: "",
+                timestamp = it.fechaMulta?.atStartOfDay() ?: LocalDateTime.now()
+            ))
+        }
 
         return HomeUiState(
             isLoading = refreshing,
@@ -242,6 +258,8 @@ class HomeViewModel(
             openIssues = allIssues.count { it.activo },
             fleetEfficiency = if (efficiencies.isNotEmpty()) efficiencies.average().toFloat() else 0f,
             totalFuelRecords = allFuel.size,
+            pendingFines = multas.count { !it.pagada },
+            totalFinesAmount = multas.filter { !it.pagada }.sumOf { it.monto.toDouble() },
             recentActivity = activityItems.sortedByDescending { it.timestamp }.take(10),
             vehicleStats = vehicleMetricsMap
         )

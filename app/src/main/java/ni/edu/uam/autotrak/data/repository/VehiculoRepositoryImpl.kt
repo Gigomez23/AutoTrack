@@ -56,16 +56,7 @@ class VehiculoRepositoryImpl(
         val localId = vehiculoDao.insert(
             vehiculo.toRoomEntity().copy(syncState = SyncState.PENDING_CREATE)
         )
-
-        return try {
-            val remote = RetrofitClient.api_vehiculo.createVehiculo(vehiculo)
-            persistRemote(remote, localId, vehiculo.usuario?.id)
-            remote.id?.let { syncManagerProvider().relinkVehicleChildren(-localId, it) }
-            vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: remote
-        } catch (_: Exception) {
-            syncManagerProvider().syncEntity(SyncConstants.ENTITY_VEHICULO)
-            vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: vehiculo
-        }
+        return vehiculoDao.getByLocalId(localId)?.toRemoteModel() ?: vehiculo
     }
 
     override suspend fun updateVehiculo(id: Long, vehiculo: Vehiculo): Vehiculo {

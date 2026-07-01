@@ -18,7 +18,7 @@ interface UsuarioApi {
     @GET("api/v1/usuarios/{id}")
     suspend fun getUsuario(@Path("id") id: Long): Usuario
 
-    @POST("api/v1/usuarios")
+    @POST("api/auth/register")
     suspend fun createUsuario(@Body usuario: Usuario): Usuario
 
     @PUT("api/v1/usuarios/{id}")
