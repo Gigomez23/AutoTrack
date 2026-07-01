@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -26,23 +31,41 @@ jobs:
         id: version
         run: |
           VERSION=$(grep -m1 -E '^[[:space:]]*versionName[[:space:]]*=' app/build.gradle.kts | sed -E 's/.*"([^"]+)".*/\1/')
+
           if [ -z "$VERSION" ]; then
-            echo "Failed to extract versionName from app/build.gradle.kts" >&2
+            echo "Failed to extract versionName from app/build.gradle.kts"
             exit 1
           fi
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build APK
+      - name: Build Debug APK
         run: ./gradlew assembleDebug
 
       - name: Rename APK
         run: |
           mv app/build/outputs/apk/debug/app-debug.apk \
-             "AutoTrak-v${VERSION}.apk"
+             AutoTrak-v${VERSION}.apk
 
-      - name: Upload APK to Release
+      - name: Create or Update latest tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -f latest
+          git push origin latest --force
+
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: latest
+          name: Latest Build
+          body: |
+            Automatically generated build from the latest commit on **main**.
+
+            **App Version:** ${{ steps.version.outputs.version }}
+            **Commit:** ${{ github.sha }}
           files: AutoTrak-v${{ steps.version.outputs.version }}.apk
+          generate_release_notes: true
+          make_latest: true
