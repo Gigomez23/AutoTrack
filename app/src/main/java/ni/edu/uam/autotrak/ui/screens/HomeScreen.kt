@@ -36,6 +36,7 @@ fun HomeScreen(
     onNavigateToFuel: () -> Unit,
     onNavigateToIssues: () -> Unit,
     onNavigateToMultas: () -> Unit,
+    onNavigateToLicencia: () -> Unit,
     onVehicleClick: (Long) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -96,6 +97,17 @@ fun HomeScreen(
                                 pendingFines = uiState.pendingFines,
                                 totalAmount = uiState.totalFinesAmount,
                                 onAction = onNavigateToMultas
+                            )
+                        }
+                    }
+
+                    // 2.6 License Alert
+                    if (uiState.isLicenciaExpired || uiState.isLicenciaExpiring) {
+                        item {
+                            LicenseAlertSection(
+                                expiryDate = uiState.licencia?.fechaVencimiento?.toString() ?: "",
+                                isExpired = uiState.isLicenciaExpired,
+                                onAction = onNavigateToLicencia
                             )
                         }
                     }
@@ -582,6 +594,67 @@ fun FinesAlertSection(
                 )
             }
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color(0xFFE65100))
+        }
+    }
+}
+
+@Composable
+fun LicenseAlertSection(
+    expiryDate: String,
+    isExpired: Boolean,
+    onAction: () -> Unit
+) {
+    val containerColor = if (isExpired) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+    }
+    
+    val contentColor = if (isExpired) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAction() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(contentColor.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (isExpired) Icons.Default.Dangerous else Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = contentColor
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isExpired) "Tu licencia está vencida" else "Tu licencia está por vencer",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+                Text(
+                    text = "Fecha de vencimiento: $expiryDate",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.8f)
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = contentColor)
         }
     }
 }

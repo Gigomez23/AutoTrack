@@ -149,7 +149,7 @@ fun MainScreen(
                 modelClass.isAssignableFrom(UserViewModel::class.java) -> UserViewModel(sessionManager, usuarioRepository) as T
                 modelClass.isAssignableFrom(RegistroCombustibleViewModel::class.java) -> RegistroCombustibleViewModel(sessionManager, fuelRepository, vehiculoRepository) as T
                 modelClass.isAssignableFrom(RegistroProblemaViewModel::class.java) -> RegistroProblemaViewModel(sessionManager, problemaRepository, vehiculoRepository) as T
-                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository, multaRepository) as T
+                modelClass.isAssignableFrom(HomeViewModel::class.java) -> HomeViewModel(sessionManager, usuarioRepository, vehiculoRepository, fuelRepository, problemaRepository, multaRepository, licenciaRepository) as T
                 modelClass.isAssignableFrom(LicenciaViewModel::class.java) -> LicenciaViewModel(sessionManager, licenciaRepository) as T
                 modelClass.isAssignableFrom(MultasViewModel::class.java) -> MultasViewModel(sessionManager, multaRepository) as T
                 modelClass.isAssignableFrom(DocumentoVehiculoViewModel::class.java) -> DocumentoVehiculoViewModel(documentoVehiculoRepository) as T
@@ -250,6 +250,7 @@ fun MainScreen(
                         onNavigateToFuel = { navController.navigate(Screen.FuelLogs.route) },
                         onNavigateToIssues = { navController.navigate(Screen.Issues.route) },
                         onNavigateToMultas = { navController.navigate(Screen.Multas.route) },
+                        onNavigateToLicencia = { navController.navigate(Screen.Licencia.route) },
                         onVehicleClick = { id -> navController.navigate(Screen.VehicleDetail.createRoute(id)) }
                     )
                 }

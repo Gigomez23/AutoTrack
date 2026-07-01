@@ -13,11 +13,14 @@ import ni.edu.uam.autotrak.data.remote.model.RegistroProblema
 import ni.edu.uam.autotrak.data.remote.model.Multa
 import ni.edu.uam.autotrak.data.remote.model.Usuario
 import ni.edu.uam.autotrak.data.remote.model.Vehiculo
+import ni.edu.uam.autotrak.data.remote.model.Licencia
 import ni.edu.uam.autotrak.data.repository.UsuarioRepository
 import ni.edu.uam.autotrak.data.repository.VehiculoRepository
 import ni.edu.uam.autotrak.data.repository.RegistroCombustibleRepository
 import ni.edu.uam.autotrak.data.repository.RegistroProblemaRepository
 import ni.edu.uam.autotrak.data.repository.MultaRepository
+import ni.edu.uam.autotrak.data.repository.LicenciaRepository
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
@@ -28,7 +31,8 @@ class HomeViewModel(
     private val vehiculoRepository: VehiculoRepository,
     private val fuelRepository: RegistroCombustibleRepository,
     private val problemaRepository: RegistroProblemaRepository,
-    private val multaRepository: MultaRepository
+    private val multaRepository: MultaRepository,
+    private val licenciaRepository: LicenciaRepository
 ) : ViewModel() {
 
     private val userId = sessionManager.getUserId()
@@ -43,6 +47,9 @@ class HomeViewModel(
         val totalFuelRecords: Int = 0,
         val pendingFines: Int = 0,
         val totalFinesAmount: Double = 0.0,
+        val licencia: Licencia? = null,
+        val isLicenciaExpiring: Boolean = false,
+        val isLicenciaExpired: Boolean = false,
         val recentActivity: List<ActivityItem> = emptyList(),
         val insights: List<String> = emptyList(),
         val vehicleStats: Map<Long, VehicleMetrics> = emptyMap(),
@@ -75,22 +82,25 @@ class HomeViewModel(
         val userFlow = usuarioRepository.observeUsuario(userId)
         val vehiclesFlow = vehiculoRepository.observeVehiculos(userId)
         val multasFlow = multaRepository.observeByUsuarioId(userId)
+        val licenciaFlow = licenciaRepository.observeByUsuarioId(userId)
         
         combine(
             userFlow,
             vehiclesFlow,
             multasFlow,
+            licenciaFlow,
             _refreshing
-        ) { user, vehicles, multas, refreshing ->
-            HomeUiParams(user, vehicles, multas, refreshing)
+        ) { user, vehicles, multas, licencias, refreshing ->
+            HomeUiParams(user, vehicles, multas, licencias.firstOrNull(), refreshing)
         }.flatMapLatest { params ->
             val user = params.user
             val vehicles = params.vehicles
             val multas = params.multas
+            val licencia = params.licencia
             val refreshing = params.refreshing
             
             if (vehicles.isEmpty() && multas.isEmpty()) {
-                flowOf(HomeUiState(isLoading = refreshing, user = user, vehicles = emptyList()))
+                flowOf(HomeUiState(isLoading = refreshing, user = user, vehicles = emptyList(), licencia = licencia))
             } else {
                 val issueFlows = vehicles.map { v -> 
                     val vid = v.id ?: -1L
@@ -102,13 +112,13 @@ class HomeViewModel(
                 }
 
                 if (issueFlows.isEmpty() && fuelFlows.isEmpty()) {
-                     flowOf(calculateHomeState(user, vehicles, emptyMap(), emptyMap(), multas, refreshing))
+                     flowOf(calculateHomeState(user, vehicles, emptyMap(), emptyMap(), multas, licencia, refreshing))
                 } else {
                     combine(
                         if (issueFlows.isNotEmpty()) combine(issueFlows) { it.toMap() } else flowOf(emptyMap()),
                         if (fuelFlows.isNotEmpty()) combine(fuelFlows) { it.toMap() } else flowOf(emptyMap())
                     ) { issuesMap, fuelMap ->
-                        calculateHomeState(user, vehicles, issuesMap, fuelMap, multas, refreshing)
+                        calculateHomeState(user, vehicles, issuesMap, fuelMap, multas, licencia, refreshing)
                     }
                 }
             }
@@ -121,6 +131,7 @@ class HomeViewModel(
         val user: Usuario?,
         val vehicles: List<Vehiculo>,
         val multas: List<Multa>,
+        val licencia: Licencia?,
         val refreshing: Boolean
     )
 
@@ -137,6 +148,7 @@ class HomeViewModel(
                 try { usuarioRepository.refreshUsuario(userId) } catch (e: Exception) {}
                 try { vehiculoRepository.refreshVehiculos(userId) } catch (e: Exception) {}
                 try { multaRepository.refreshByUsuarioId(userId) } catch (e: Exception) {}
+                try { licenciaRepository.refreshByUsuarioId(userId) } catch (e: Exception) {}
                 
                 val vehicles = try {
                     vehiculoRepository.observeVehiculos(userId).first()
@@ -170,6 +182,7 @@ class HomeViewModel(
         issuesMap: Map<Long, List<RegistroProblema>>,
         fuelMap: Map<Long, List<RegistroCombustible>>,
         multas: List<Multa>,
+        licencia: Licencia?,
         refreshing: Boolean
     ): HomeUiState {
         val vehicleMetricsMap = mutableMapOf<Long, VehicleMetrics>()
@@ -195,7 +208,7 @@ class HomeViewModel(
             }
 
             val costByMonth = sortedFuel.groupBy { 
-                val date = it.fechaRegistro ?: java.time.LocalDate.now()
+                val date = it.fechaRegistro ?: LocalDate.now()
                 "${date.year}-${date.monthValue}"
             }.mapValues { entry ->
                 entry.value.sumOf { it.cantidadPagado?.toDouble() ?: 0.0 }
@@ -250,6 +263,15 @@ class HomeViewModel(
             ))
         }
 
+        val isLicenciaExpiring = licencia?.fechaVencimiento?.let {
+            val daysUntilExp = ChronoUnit.DAYS.between(LocalDate.now(), it)
+            daysUntilExp in 0..30
+        } ?: false
+
+        val isLicenciaExpired = licencia?.fechaVencimiento?.let {
+            it.isBefore(LocalDate.now())
+        } ?: false
+
         return HomeUiState(
             isLoading = refreshing,
             user = user,
@@ -260,6 +282,9 @@ class HomeViewModel(
             totalFuelRecords = allFuel.size,
             pendingFines = multas.count { !it.pagada },
             totalFinesAmount = multas.filter { !it.pagada }.sumOf { it.monto.toDouble() },
+            licencia = licencia,
+            isLicenciaExpiring = isLicenciaExpiring,
+            isLicenciaExpired = isLicenciaExpired,
             recentActivity = activityItems.sortedByDescending { it.timestamp }.take(10),
             vehicleStats = vehicleMetricsMap
         )
