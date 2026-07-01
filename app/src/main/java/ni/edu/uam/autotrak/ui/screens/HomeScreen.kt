@@ -35,6 +35,8 @@ fun HomeScreen(
     onNavigateToVehicles: () -> Unit,
     onNavigateToFuel: () -> Unit,
     onNavigateToIssues: () -> Unit,
+    onNavigateToMultas: () -> Unit,
+    onNavigateToLicencia: () -> Unit,
     onVehicleClick: (Long) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -83,8 +85,31 @@ fun HomeScreen(
                             totalVehicles = uiState.totalVehicles,
                             openIssues = uiState.openIssues,
                             avgEfficiency = uiState.fleetEfficiency,
-                            totalFuelRecords = uiState.totalFuelRecords
+                            totalFuelRecords = uiState.totalFuelRecords,
+                            pendingFines = uiState.pendingFines
                         )
+                    }
+
+                    // 2.5 Multas Alert
+                    if (uiState.pendingFines > 0) {
+                        item {
+                            FinesAlertSection(
+                                pendingFines = uiState.pendingFines,
+                                totalAmount = uiState.totalFinesAmount,
+                                onAction = onNavigateToMultas
+                            )
+                        }
+                    }
+
+                    // 2.6 License Alert
+                    if (uiState.isLicenciaExpired || uiState.isLicenciaExpiring) {
+                        item {
+                            LicenseAlertSection(
+                                expiryDate = uiState.licencia?.fechaVencimiento?.toString() ?: "",
+                                isExpired = uiState.isLicenciaExpired,
+                                onAction = onNavigateToLicencia
+                            )
+                        }
                     }
 
                     // 3. Quick Actions
@@ -92,7 +117,8 @@ fun HomeScreen(
                         QuickActionsSection(
                             onNavigateToFuel = onNavigateToFuel,
                             onNavigateToIssues = onNavigateToIssues,
-                            onNavigateToVehicles = onNavigateToVehicles
+                            onNavigateToVehicles = onNavigateToVehicles,
+                            onNavigateToMultas = onNavigateToMultas
                         )
                     }
 
@@ -170,7 +196,8 @@ fun StatsGrid(
     totalVehicles: Int,
     openIssues: Int,
     avgEfficiency: Float,
-    totalFuelRecords: Int
+    totalFuelRecords: Int,
+    pendingFines: Int
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -205,10 +232,10 @@ fun StatsGrid(
             )
             StatCard(
                 modifier = Modifier.weight(1f),
-                label = "Cargas",
-                value = totalFuelRecords.toString(),
-                icon = Icons.Default.History,
-                color = MaterialTheme.colorScheme.outline
+                label = "Multas",
+                value = pendingFines.toString(),
+                icon = Icons.Default.ReceiptLong,
+                color = if (pendingFines > 0) Color(0xFFE65100) else MaterialTheme.colorScheme.outline
             )
         }
     }
@@ -240,7 +267,8 @@ fun StatCard(
 fun QuickActionsSection(
     onNavigateToFuel: () -> Unit,
     onNavigateToIssues: () -> Unit,
-    onNavigateToVehicles: () -> Unit
+    onNavigateToVehicles: () -> Unit,
+    onNavigateToMultas: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionHeader(title = "Acciones Rápidas")
@@ -262,7 +290,13 @@ fun QuickActionsSection(
             )
             QuickActionButton(
                 modifier = Modifier.weight(1f),
-                label = "Ver Flota",
+                label = "Multas",
+                icon = Icons.Default.ReceiptLong,
+                onClick = onNavigateToMultas
+            )
+            QuickActionButton(
+                modifier = Modifier.weight(1f),
+                label = "Flota",
                 icon = Icons.AutoMirrored.Filled.List,
                 onClick = onNavigateToVehicles
             )
@@ -352,16 +386,16 @@ fun VehicleCarouselCard(
     onClick: () -> Unit
 ) {
     val statusColor = when (vehiculo.estado) {
-        "CHUQUITI" -> Color(0xFF4CAF50) // Green
-        "CHIQUITI" -> Color(0xFFFFC107) // Amber
-        "CHACATA" -> Color(0xFFF44336) // Red
+        "EN_MARCHA" -> Color(0xFF4CAF50) // Green
+        "EN_MARCHA_CON_FALLAS" -> Color(0xFFFFC107) // Amber
+        "DETENIDO" -> Color(0xFFF44336) // Red
         else -> MaterialTheme.colorScheme.outline
     }
     
     val statusText = when (vehiculo.estado) {
-        "CHUQUITI" -> "Saludable"
-        "CHIQUITI" -> "Atención"
-        "CHACATA" -> "Crítico"
+        "EN_MARCHA" -> "Saludable"
+        "EN_MARCHA_CON_FALLAS" -> "Con Fallas"
+        "DETENIDO" -> "Detenido"
         else -> vehiculo.estado ?: "Desconocido"
     }
 
@@ -515,6 +549,112 @@ fun InsightsSection(insights: List<String>) {
                     Text(text = insight, style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun FinesAlertSection(
+    pendingFines: Int,
+    totalAmount: Double,
+    onAction: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAction() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(Color(0xFFFFE0B2), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.PriorityHigh, contentDescription = null, tint = Color(0xFFE65100))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tienes $pendingFines multas pendientes",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFE65100)
+                )
+                Text(
+                    text = "Total a pagar: $${String.format(Locale.getDefault(), "%.2f", totalAmount)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFE65100).copy(alpha = 0.8f)
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color(0xFFE65100))
+        }
+    }
+}
+
+@Composable
+fun LicenseAlertSection(
+    expiryDate: String,
+    isExpired: Boolean,
+    onAction: () -> Unit
+) {
+    val containerColor = if (isExpired) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+    }
+    
+    val contentColor = if (isExpired) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.error
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAction() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(contentColor.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (isExpired) Icons.Default.Dangerous else Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = contentColor
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isExpired) "Tu licencia está vencida" else "Tu licencia está por vencer",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+                Text(
+                    text = "Fecha de vencimiento: $expiryDate",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.8f)
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = contentColor)
         }
     }
 }

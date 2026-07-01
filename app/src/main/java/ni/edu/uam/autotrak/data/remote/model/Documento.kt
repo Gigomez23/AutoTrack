@@ -1,13 +1,17 @@
 package ni.edu.uam.autotrak.data.remote.model
 
-interface Documento {
-    val id: Long?
-    val fechaEmitida: String?
-    val fechaVencimiento: String?
-}
+import ni.edu.uam.autotrak.data.sync.SyncState
+import java.time.LocalDate
+import java.time.LocalDateTime
 
-data class DocumentoGeneral(
-    override val id: Long? = null,
-    override val fechaEmitida: String? = null,
-    override val fechaVencimiento: String? = null,
-) : Documento
+data class Documento(
+    val id: Long? = null,
+    val fechaCreacion: LocalDateTime? = null,
+    val fechaActualizacion: LocalDateTime? = null,
+    val fechaVencimiento: LocalDate? = null,
+    val fechaEmitida: LocalDate? = null,
+    val imagen: String? = "",
+    val syncState: SyncState = SyncState.SYNCED
+)
+
+typealias DocumentoGeneral = Documento

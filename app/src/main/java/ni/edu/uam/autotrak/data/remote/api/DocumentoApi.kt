@@ -1,27 +1,30 @@
 package ni.edu.uam.autotrak.data.remote.api
 
 import ni.edu.uam.autotrak.data.remote.model.Documento
-import ni.edu.uam.autotrak.data.remote.model.DocumentoGeneral
+import ni.edu.uam.autotrak.data.remote.model.sync.DocumentoSyncDTO
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.POST
+import retrofit2.http.HTTP
 import retrofit2.http.PUT
 import retrofit2.http.Path
 
 interface DocumentoApi {
-    @GET("api/documentos")
-    suspend fun getDocumentos(): List<DocumentoGeneral>
+    @GET("api/v1/documentos")
+    suspend fun getDocumentos(): List<Documento>
 
-    @GET("api/documentos/{id}")
-    suspend fun getDocumentoById(@Path("id") id: Long): DocumentoGeneral
+    @GET("api/v1/documentos/{id}")
+    suspend fun getDocumentoById(@Path("id") id: Long): Documento
 
-    @POST("api/documentos")
-    suspend fun createDocumento(@Body documento: DocumentoGeneral): DocumentoGeneral
+    @GET("api/v1/documentos/vencidos")
+    suspend fun getDocumentosVencidos(): List<Documento>
 
-    @PUT("api/documentos/{id}")
-    suspend fun updateDocumento(@Path("id") id: Long, @Body documento: DocumentoGeneral): DocumentoGeneral
+    @GET("api/v1/documentos/updated-after/{timestamp}")
+    suspend fun getUpdatedAfter(@Path("timestamp") timestamp: Long): List<DocumentoSyncDTO>
 
-    @DELETE("api/documentos/{id}")
-    suspend fun deleteDocumento(@Path("id") id: Long)
+    @PUT("api/v1/documentos")
+    suspend fun updateDocumento(@Body documento: Documento): Documento
+
+    @HTTP(method = "DELETE", path = "api/v1/documentos", hasBody = true)
+    suspend fun deleteDocumento(@Body documento: DocumentoSyncDTO)
 }

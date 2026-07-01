@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.math.BigDecimal
 import java.time.LocalDate
+import ni.edu.uam.autotrak.data.remote.model.TipoMantenimiento
 import ni.edu.uam.autotrak.data.sync.SyncState
 
 class RoomTypeConverters {
@@ -41,6 +42,14 @@ class RoomTypeConverters {
     fun toSyncState(value: String?): SyncState = value
         ?.let { runCatching { SyncState.valueOf(it) }.getOrNull() }
         ?: SyncState.SYNCED
+
+    @TypeConverter
+    fun fromTipoMantenimiento(value: TipoMantenimiento?): String = value?.name ?: TipoMantenimiento.OTRO.name
+
+    @TypeConverter
+    fun toTipoMantenimiento(value: String?): TipoMantenimiento = value
+        ?.let { runCatching { TipoMantenimiento.valueOf(it) }.getOrNull() }
+        ?: TipoMantenimiento.OTRO
 
     @TypeConverter
     fun fromLocalDateTime(value: java.time.LocalDateTime?): String? = value?.toString()

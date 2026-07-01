@@ -16,6 +16,8 @@ class UserViewModel(
     private val userId = sessionManager.getUserId()
 
     private val _error = MutableStateFlow<String?>(null)
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
 
     val uiState: StateFlow<UiState<List<Usuario>>> = if (userId != -1L) {
         combine(usuarioRepository.observeUsuario(userId), _error) { user, error ->
@@ -35,13 +37,22 @@ class UserViewModel(
         }
     }
 
+    fun refreshProfile() {
+        if (userId != -1L) {
+            buscarUsuario(userId)
+        }
+    }
+
     fun buscarUsuario(id: Long) {
         viewModelScope.launch {
+            _isRefreshing.value = true
             try {
                 usuarioRepository.refreshUsuario(id)
                 _error.value = null
             } catch (e: Exception) {
                 _error.value = "Error al cargar perfil: ${e.message}"
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }

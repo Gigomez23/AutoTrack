@@ -5,15 +5,25 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import ni.edu.uam.autotrak.data.local.dao.DocumentoDao
+import ni.edu.uam.autotrak.data.local.dao.DocumentoVehiculoDao
+import ni.edu.uam.autotrak.data.local.dao.LicenciaDao
+import ni.edu.uam.autotrak.data.local.dao.MultaDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroCombustibleDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroDao
 import ni.edu.uam.autotrak.data.local.dao.RegistroProblemaDao
+import ni.edu.uam.autotrak.data.local.dao.ServicioMantenimientoDao
 import ni.edu.uam.autotrak.data.local.dao.SyncMetadataDao
 import ni.edu.uam.autotrak.data.local.dao.UsuarioDao
 import ni.edu.uam.autotrak.data.local.dao.VehiculoDao
+import ni.edu.uam.autotrak.data.local.model.DocumentoEntity
+import ni.edu.uam.autotrak.data.local.model.DocumentoVehiculoEntity
+import ni.edu.uam.autotrak.data.local.model.LicenciaEntity
+import ni.edu.uam.autotrak.data.local.model.MultaEntity
 import ni.edu.uam.autotrak.data.local.model.RegistroCombustibleEntity
 import ni.edu.uam.autotrak.data.local.model.RegistroEntity
 import ni.edu.uam.autotrak.data.local.model.RegistroProblemaEntity
+import ni.edu.uam.autotrak.data.local.model.ServicioMantenimientoEntity
 import ni.edu.uam.autotrak.data.local.model.SyncMetadataEntity
 import ni.edu.uam.autotrak.data.local.model.UsuarioEntity
 import ni.edu.uam.autotrak.data.local.model.VehiculoEntity
@@ -23,13 +33,18 @@ import ni.edu.uam.autotrak.data.sync.SyncConstants
     entities = [
         UsuarioEntity::class,
         VehiculoEntity::class,
+        LicenciaEntity::class,
+        MultaEntity::class,
+        DocumentoVehiculoEntity::class,
         RegistroEntity::class,
         RegistroCombustibleEntity::class,
         RegistroProblemaEntity::class,
+        ServicioMantenimientoEntity::class,
+        DocumentoEntity::class,
         SyncMetadataEntity::class
     ],
-    version = 1,
-    exportSchema = false
+    version = 9,
+    exportSchema = false,
 )
 @TypeConverters(RoomTypeConverters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -38,6 +53,11 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun registroDao(): RegistroDao
     abstract fun registroCombustibleDao(): RegistroCombustibleDao
     abstract fun registroProblemaDao(): RegistroProblemaDao
+    abstract fun documentoDao(): DocumentoDao
+    abstract fun documentoVehiculoDao(): DocumentoVehiculoDao
+    abstract fun licenciaDao(): LicenciaDao
+    abstract fun multaDao(): MultaDao
+    abstract fun servicioMantenimientoDao(): ServicioMantenimientoDao
     abstract fun syncMetadataDao(): SyncMetadataDao
 
     companion object {
@@ -50,7 +70,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     SyncConstants.DATABASE_NAME
-                ).build().also { INSTANCE = it }
+                ).fallbackToDestructiveMigration().build().also { INSTANCE = it }
             }
         }
     }

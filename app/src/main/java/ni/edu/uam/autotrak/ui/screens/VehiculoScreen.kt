@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,7 +12,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Search
@@ -263,8 +266,28 @@ fun VehiculoFormScreen(
     var anio by remember { mutableStateOf("") }
     var placa by remember { mutableStateOf("") }
     var vin by remember { mutableStateOf("") }
-    var estado by remember { mutableStateOf("") }
+    var estado by remember { mutableStateOf("EN_MARCHA") }
     var apodo by remember { mutableStateOf("") }
+
+    var showYearPicker by remember { mutableStateOf(false) }
+    var expandedEstado by remember { mutableStateOf(false) }
+    
+    val estadosVehiculo = listOf(
+        "EN_MARCHA" to "En Marcha",
+        "DETENIDO" to "Detenido",
+        "EN_MARCHA_CON_FALLAS" to "En Marcha con Fallas"
+    )
+
+    if (showYearPicker) {
+        YearPickerDialog(
+            selectedYear = anio.toIntOrNull() ?: java.time.Year.now().value,
+            onYearSelected = {
+                anio = it.toString()
+                showYearPicker = false
+            },
+            onDismissRequest = { showYearPicker = false }
+        )
+    }
 
     val detailUiState by viewModel.detailUiState.collectAsState()
 
@@ -282,7 +305,7 @@ fun VehiculoFormScreen(
             anio = v.anio?.toString() ?: ""
             placa = v.placa ?: ""
             vin = v.vin ?: ""
-            estado = v.estado ?: ""
+            estado = v.estado ?: "EN_MARCHA"
             apodo = v.apodo ?: ""
         }
     }
@@ -307,13 +330,67 @@ fun VehiculoFormScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OutlinedTextField(value = apodo, onValueChange = { apodo = it }, label = { Text("Apodo") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = marca, onValueChange = { marca = it }, label = { Text("Marca") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = modelo, onValueChange = { modelo = it }, label = { Text("Modelo") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = anio, onValueChange = { anio = it }, label = { Text("Año") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = placa, onValueChange = { placa = it }, label = { Text("Placa") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = vin, onValueChange = { vin = it }, label = { Text("VIN") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = estado, onValueChange = { estado = it }, label = { Text("Estado") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = apodo, onValueChange = { apodo = it }, label = { Text("Apodo") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(value = marca, onValueChange = { marca = it }, label = { Text("Marca") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(value = modelo, onValueChange = { modelo = it }, label = { Text("Modelo") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            
+            Box(modifier = Modifier.fillMaxWidth().clickable { showYearPicker = true }) {
+                OutlinedTextField(
+                    value = anio,
+                    onValueChange = { },
+                    label = { Text("Año") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                    readOnly = true,
+                    enabled = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    trailingIcon = {
+                        Icon(Icons.Default.CalendarToday, contentDescription = "Seleccionar año")
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+            
+            OutlinedTextField(value = placa, onValueChange = { placa = it }, label = { Text("Placa") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            OutlinedTextField(value = vin, onValueChange = { vin = it }, label = { Text("VIN") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+            
+            ExposedDropdownMenuBox(
+                expanded = expandedEstado,
+                onExpandedChange = { expandedEstado = !expandedEstado },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = estadosVehiculo.find { it.first == estado }?.second ?: "En Marcha",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Estado") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEstado) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedEstado,
+                    onDismissRequest = { expandedEstado = false }
+                ) {
+                    estadosVehiculo.forEach { (value, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                estado = value
+                                expandedEstado = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -343,10 +420,47 @@ fun VehiculoFormScreen(
                     }
                     onSuccess()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Text(if (vehicleId == null) "Guardar" else "Actualizar")
+                Text(if (vehicleId == null) "Guardar" else "Actualizar", style = MaterialTheme.typography.titleMedium)
             }
         }
     }
+}
+
+@Composable
+fun YearPickerDialog(
+    selectedYear: Int,
+    onYearSelected: (Int) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    val currentYear = java.time.Year.now().value
+    val years = (1950..currentYear + 1).toList().reversed()
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = years.indexOf(selectedYear).coerceAtLeast(0))
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancelar") }
+        },
+        title = { Text("Seleccionar Año") },
+        text = {
+            Box(modifier = Modifier.height(250.dp)) {
+                LazyColumn(state = listState) {
+                    items(years) { year ->
+                        TextButton(
+                            onClick = { onYearSelected(year) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = if (year == selectedYear) 
+                                ButtonDefaults.textButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                                else ButtonDefaults.textButtonColors()
+                        ) {
+                            Text(year.toString(), style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        }
+    )
 }

@@ -2,4 +2,12 @@
 <resources>
 
     <style name="Theme.AutoTrak" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.AppSplash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#FFFFFF</item>
+
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+
+        <item name="postSplashScreenTheme">@style/Theme.AutoTrak</item>
+    </style>
 </resources>

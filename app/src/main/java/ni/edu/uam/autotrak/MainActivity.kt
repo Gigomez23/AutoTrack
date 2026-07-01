@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,6 +26,8 @@ import ni.edu.uam.autotrak.data.repository.UsuarioRepositoryImpl
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+
         super.onCreate(savedInstanceState)
         
         val sessionManager = SessionManager(this)
@@ -55,7 +58,17 @@ fun AppNavigation(sessionManager: SessionManager, database: AppDatabase, serverS
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro_problema,
             database.registroProblemaDao(),
             ni.edu.uam.autotrak.data.remote.RetrofitClient.api_registro,
-            database.registroDao()
+            database.registroDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_licencia,
+            database.licenciaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_multa,
+            database.multaDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento_vehiculo,
+            database.documentoVehiculoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_documento,
+            database.documentoDao(),
+            ni.edu.uam.autotrak.data.remote.RetrofitClient.api_servicio_mantenimiento,
+            database.servicioMantenimientoDao()
         )
     }
 

@@ -1,5 +1,6 @@
 package ni.edu.uam.autotrak.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,7 +23,9 @@ import ni.edu.uam.autotrak.viewmodel.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import ni.edu.uam.autotrak.ui.components.SyncStatusBadge
 import ni.edu.uam.autotrak.ui.components.OfflineBanner
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -208,6 +211,18 @@ fun IssueList(
     }
 }
 
+fun getTipoProblemaLabel(tipo: String?): String {
+    return when (tipo) {
+        "MECANICO" -> "Mecánico"
+        "ELECTRICO" -> "Eléctrico"
+        "CARROCERIA" -> "Carrocería"
+        "LLANTAS" -> "Llantas"
+        "DOCUMENTACION" -> "Documentación"
+        "OTRO" -> "Otro"
+        else -> tipo ?: "Desconocido"
+    }
+}
+
 @Composable
 fun IssueItem(
     registro: RegistroProblema,
@@ -229,7 +244,7 @@ fun IssueItem(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = registro.tipoProblema ?: "Problema Desconocido",
+                        text = getTipoProblemaLabel(registro.tipoProblema),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -320,11 +335,49 @@ fun IssueFormScreen(
     onSuccess: () -> Unit,
     onBack: () -> Unit
 ) {
-    var tipoProblema by remember { mutableStateOf(registroToEdit?.tipoProblema ?: "") }
+    var tipoProblema by remember { mutableStateOf(registroToEdit?.tipoProblema ?: "OTRO") }
     var nota by remember { mutableStateOf(registroToEdit?.nota ?: "") }
-    var fecha by remember { mutableStateOf(registroToEdit?.fechaRegistro?.toString() ?: LocalDate.now().toString()) }
+    var fechaRegistro by remember { mutableStateOf(registroToEdit?.fechaRegistro ?: LocalDate.now()) }
     var afectaVehiculo by remember { mutableStateOf(registroToEdit?.afectaVehiculo ?: false) }
     var activo by remember { mutableStateOf(registroToEdit?.activo ?: true) }
+
+    var expandedTipo by remember { mutableStateOf(false) }
+    val tiposProblema = listOf(
+        "MECANICO",
+        "ELECTRICO",
+        "CARROCERIA",
+        "LLANTAS",
+        "DOCUMENTACION",
+        "OTRO"
+    )
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = fechaRegistro.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        fechaRegistro = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -345,21 +398,61 @@ fun IssueFormScreen(
                 .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = fecha,
-                onValueChange = { fecha = it },
-                label = { Text("Fecha (AAAA-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) }
-            )
+            Box(modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }) {
+                OutlinedTextField(
+                    value = fechaRegistro.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    onValueChange = { },
+                    label = { Text("Fecha de Registro") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.DateRange, contentDescription = null) },
+                    readOnly = true,
+                    enabled = false,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    trailingIcon = {
+                        Icon(Icons.Default.CalendarToday, contentDescription = "Seleccionar fecha")
+                    }
+                )
+            }
             
-            OutlinedTextField(
-                value = tipoProblema,
-                onValueChange = { tipoProblema = it },
-                label = { Text("Tipo de Problema") },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Eje: Motor, Frenos, Luces...") }
-            )
+            ExposedDropdownMenuBox(
+                expanded = expandedTipo,
+                onExpandedChange = { expandedTipo = !expandedTipo },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = getTipoProblemaLabel(tipoProblema),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Tipo de Problema") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTipo) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth(),
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                )
+
+                ExposedDropdownMenu(
+                    expanded = expandedTipo,
+                    onDismissRequest = { expandedTipo = false }
+                ) {
+                    tiposProblema.forEach { value ->
+                        DropdownMenuItem(
+                            text = { Text(getTipoProblemaLabel(value)) },
+                            onClick = {
+                                tipoProblema = value
+                                expandedTipo = false
+                            }
+                        )
+                    }
+                }
+            }
             
             OutlinedTextField(
                 value = nota,
@@ -403,7 +496,7 @@ fun IssueFormScreen(
                     
                     val registro = RegistroProblema(
                         id = registroToEdit?.id,
-                        fechaRegistro = try { LocalDate.parse(fecha) } catch(e: Exception) { LocalDate.now() },
+                        fechaRegistro = fechaRegistro,
                         tipoProblema = tipoProblema,
                         nota = nota,
                         activo = activo,
